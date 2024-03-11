@@ -29,7 +29,7 @@ contract PrelaunchPoints {
 
     mapping(address => uint256) public balances;
 
-    event Staked(address indexed user, uint256 amount, address indexed referral);
+    event Staked(address indexed user, uint256 amount, bytes32 indexed referral);
     event Converted(uint256 amountETH, uint256 amountlpETH);
     event Withdrawn(address indexed user, uint256 amount);
     event Claimed(address indexed user, uint256 reward);
@@ -43,19 +43,26 @@ contract PrelaunchPoints {
      */
     constructor() {
         owner = msg.sender;
-        loopActivation = 4294967295;
+        loopActivation = uint32(block.timestamp + 120 days);
         startClaimDate = 4294967295;
         TIMELOCK = 7 days;
     }
 
     // ----- Stake Functions ----- //
 
-    function stake(address _referral) public payable {
+    /**
+     * @notice Stakes ETH
+     * @param _referral info of the referral. This value will be processed in the backend.
+     */
+    function stake(bytes32 _referral) public payable {
         _processStake(msg.value, msg.sender, _referral);
     }
 
-    function stakeFor(address _for, address _referral) external payable {
-        // pull tokens from msg.sender
+    /**
+     * @notice Stakes ETH for a given address
+     * @param _referral info of the referral. This value will be processed in the backend.
+     */
+    function stakeFor(address _for, bytes32 _referral) external payable {
         _processStake(msg.value, _for, _referral);
     }
 
@@ -65,7 +72,7 @@ contract PrelaunchPoints {
      * @param _receiver  Address of user who will receive the stake
      * @param _referral  Address of the referral user
      */
-    function _processStake(uint256 _amount, address _receiver, address _referral) internal onlyBeforeDate(loopActivation){
+    function _processStake(uint256 _amount, address _receiver, bytes32 _referral) internal onlyBeforeDate(loopActivation){
         require(_amount > 0, "Cannot stake 0");
 
         // update storage variables
@@ -143,7 +150,7 @@ contract PrelaunchPoints {
     /**
      * @notice Sets the lpETH contract address
      * @param _loopAddress address of the lpETH contract
-     * @dev Can only be set once
+     * @dev Can only be set once before 120 have passed from deployment. After that users can only withdraw ETH.
      */
     function setLoopAddress(address _loopAddress) external onlyAuthorized onlyBeforeDate(loopActivation){
         lpETH = ILpETH(_loopAddress);
