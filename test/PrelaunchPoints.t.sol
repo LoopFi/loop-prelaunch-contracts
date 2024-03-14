@@ -36,7 +36,7 @@ contract PrelaunchPointsTest is Test {
         prelaunchPoints.stake{value: stakeAmount}(referral);
 
         assertEq(prelaunchPoints.balances(address(this)), stakeAmount);
-        assertEq(prelaunchPoints.totalSupply(), stakeAmount);        
+        assertEq(prelaunchPoints.totalSupply(), stakeAmount);
     }
 
     function testStakeFailActivation(uint256 stakeAmount) public {
@@ -149,7 +149,6 @@ contract PrelaunchPointsTest is Test {
         vm.prank(user2);
         prelaunchPoints.stake{value: stakeAmount2}(referral);
 
-
         // Set Loop Contracts and Convert to lpETH
         prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
         vm.warp(prelaunchPoints.loopActivation() + prelaunchPoints.TIMELOCK() + 1);
@@ -240,7 +239,6 @@ contract PrelaunchPointsTest is Test {
         vm.prank(user2);
         prelaunchPoints.stake{value: stakeAmount2}(referral);
 
-
         // Set Loop Contracts and Convert to lpETH
         prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
         vm.warp(prelaunchPoints.loopActivation() + prelaunchPoints.TIMELOCK() + 1);
@@ -295,8 +293,7 @@ contract PrelaunchPointsTest is Test {
     }
 
     /// ======= Tests for withdraw ======= ///
-    receive() external payable {
-    }
+    receive() external payable {}
 
     function testWithdraw(uint256 stakeAmount) public {
         vm.assume(stakeAmount > 0);
@@ -312,7 +309,7 @@ contract PrelaunchPointsTest is Test {
         assertEq(address(this).balance, stakeAmount);
     }
 
-    function testWithdrawFailBeforeActivation(uint256 stakeAmount) public { 
+    function testWithdrawFailBeforeActivation(uint256 stakeAmount) public {
         vm.assume(stakeAmount > 0);
         vm.deal(address(this), stakeAmount);
         prelaunchPoints.stake{value: stakeAmount}(referral);
@@ -343,7 +340,7 @@ contract PrelaunchPointsTest is Test {
         prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
         vm.warp(prelaunchPoints.loopActivation() + 1);
 
-        vm.prank(address(lpETHVault)); 
+        vm.prank(address(lpETHVault));
         vm.expectRevert(PrelaunchPoints.FailedToSendEther.selector);
         prelaunchPoints.withdraw();
     }
