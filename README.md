@@ -29,3 +29,17 @@ To run the tests
 ```
 forge test
 ```
+
+## Deployment
+
+First, set your environment variables in a `.env` file as in `.env.example`. To load these variables run
+
+```
+source .env
+```
+
+To deploy and verify the `PrelaunchPoints` contract run
+
+```
+forge script script/PrelaunchPoints.s.sol --rpc-url $RPC_URL --broadcast --verify
+```
