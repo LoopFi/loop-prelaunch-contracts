@@ -34,7 +34,7 @@ contract PrelaunchPoints {
 
     uint32 public loopActivation;
     uint32 public startClaimDate;
-    uint32 public immutable TIMELOCK;
+    uint32 public constant TIMELOCK = 7 days;
 
     mapping(address => mapping(address => uint256)) public balances;
 
@@ -46,7 +46,7 @@ contract PrelaunchPoints {
     event StakedVault(address indexed user, uint256 amount);
     event Converted(uint256 amountETH, uint256 amountlpETH);
     event Withdrawn(address indexed user, address token, uint256 amount);
-    event Claimed(address indexed user, uint256 reward);
+    event Claimed(address indexed user, address token, uint256 reward);
     event Recovered(address token, uint256 amount);
     event OwnerUpdated(address newOwner);
     event LoopAddressesUpdated(address loopAddress, address vaultAddress);
@@ -83,7 +83,6 @@ contract PrelaunchPoints {
         exchangeProxy = _exchangeProxy;
         loopActivation = uint32(block.timestamp + 120 days);
         startClaimDate = 4294967295; // Max uint32 ~ year 2107
-        TIMELOCK = 7 days;
 
         // Allow intital list of tokens
         uint256 length = _allowedTokens.length;
@@ -154,19 +153,15 @@ contract PrelaunchPoints {
         }
         if (_token == ETH) {
             totalSupply = totalSupply + _amount;
-            balances[ETH][_receiver] = balances[ETH][_receiver] + _amount;
-
-            emit Locked(_receiver, _amount, ETH, _referral);
         } else {
             if (!isTokenAllowed[_token]) {
                 revert TokenNotAllowed();
             }
             IERC20(_token).safeTransferFrom(msg.sender, address(this), _amount);
-
-            balances[_token][_receiver] = balances[_token][_receiver] + _amount;
-
-            emit Locked(_receiver, _amount, _token, _referral);
         }
+
+        balances[_token][_receiver] = balances[_token][_receiver] + _amount;
+        emit Locked(_receiver, _amount, _token, _referral);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -200,31 +195,27 @@ contract PrelaunchPoints {
      * @dev Claim logic. If necessary converts token to ETH before depositing into lpETH contract.
      */
     function _claim(address _token, address _receiver, bytes calldata _data) internal returns (uint256 claimedAmount) {
-        if (_token == ETH) {
-            uint256 userStake = balances[ETH][msg.sender];
-            if (userStake == 0) {
+        uint256 userStake = balances[_token][msg.sender];
+        if (userStake == 0) {
                 revert NothingToClaim();
             }
-
+        if (_token == ETH) {
             claimedAmount = userStake.mulDiv(totalLpETH, totalSupply);
             balances[_token][msg.sender] = 0;
             lpETH.safeTransfer(_receiver, claimedAmount);
-
-            emit Claimed(msg.sender, claimedAmount);
         } else {
-            uint256 userStake = balances[_token][msg.sender];
-            if (userStake == 0) {
-                revert NothingToClaim();
-            }
             _validateData(_token, userStake, _data);
             balances[_token][msg.sender] = 0;
+            
             // Swap token to ETH
             uint256 userETH = address(this).balance;
             _fillQuote(IERC20(_token), userStake, _data);
-            userETH = address(this).balance - userETH;
-            // Convert swapped ETH to lpETH
-            lpETH.deposit{value: userETH}(_receiver);
+            claimedAmount = address(this).balance - userETH;
+
+            // Convert swapped ETH to lpETH (1 to 1 conversion)
+            lpETH.deposit{value: claimedAmount}(_receiver);
         }
+        emit Claimed(msg.sender, _token, claimedAmount);
     }
 
     /**
