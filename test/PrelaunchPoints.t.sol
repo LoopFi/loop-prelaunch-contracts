@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
 import "../src/PrelaunchPoints.sol";
-import "../src/ILpETH.sol";
+import "../src/interfaces/ILpETH.sol";
 
 import "./mock/AttackContract.sol";
 import "./mock/MockLpETH.sol";
