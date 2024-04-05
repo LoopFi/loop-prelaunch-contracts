@@ -15,3 +15,11 @@ docs/
 
 # Workspace VSCode
 .vscode
+
+# Libs
+node_modules
+
+# Hardhat
+cache_hardhat
+artifacts
+typechain
