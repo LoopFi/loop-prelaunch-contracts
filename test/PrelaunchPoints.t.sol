@@ -208,7 +208,7 @@ contract PrelaunchPointsTest is Test {
         prelaunchPoints.convertAllETH();
 
         vm.warp(prelaunchPoints.startClaimDate() + 1);
-        prelaunchPoints.claim(ETH, PrelaunchPoints.Exchange.UniswapV3, emptydata);
+        prelaunchPoints.claim(ETH, 100, PrelaunchPoints.Exchange.UniswapV3, emptydata);
 
         uint256 balanceLpETH = prelaunchPoints.totalLpETH() * lockAmount / prelaunchPoints.totalSupply();
 
@@ -240,7 +240,7 @@ contract PrelaunchPointsTest is Test {
         prelaunchPoints.convertAllETH();
 
         vm.warp(prelaunchPoints.startClaimDate() + 1);
-        prelaunchPoints.claim(ETH, PrelaunchPoints.Exchange.UniswapV3, emptydata);
+        prelaunchPoints.claim(ETH, 100, PrelaunchPoints.Exchange.UniswapV3, emptydata);
 
         uint256 balanceLpETH = prelaunchPoints.totalLpETH() * lockAmount / prelaunchPoints.totalSupply();
 
@@ -248,7 +248,7 @@ contract PrelaunchPointsTest is Test {
         assertEq(lpETH.balanceOf(address(this)), balanceLpETH);
 
         vm.prank(user1);
-        prelaunchPoints.claim(ETH, PrelaunchPoints.Exchange.UniswapV3, emptydata);
+        prelaunchPoints.claim(ETH, 100, PrelaunchPoints.Exchange.UniswapV3, emptydata);
         uint256 balanceLpETH1 = prelaunchPoints.totalLpETH() * lockAmount1 / prelaunchPoints.totalSupply();
 
         assertEq(prelaunchPoints.balances(user1, ETH), 0);
@@ -266,10 +266,10 @@ contract PrelaunchPointsTest is Test {
         prelaunchPoints.convertAllETH();
 
         vm.warp(prelaunchPoints.startClaimDate() + 1);
-        prelaunchPoints.claim(ETH, PrelaunchPoints.Exchange.UniswapV3, emptydata);
+        prelaunchPoints.claim(ETH, 100, PrelaunchPoints.Exchange.UniswapV3, emptydata);
 
         vm.expectRevert(PrelaunchPoints.NothingToClaim.selector);
-        prelaunchPoints.claim(ETH, PrelaunchPoints.Exchange.UniswapV3, emptydata);
+        prelaunchPoints.claim(ETH, 100, PrelaunchPoints.Exchange.UniswapV3, emptydata);
     }
 
     function testClaimFailBeforeConvert(uint256 lockAmount) public {
@@ -282,7 +282,7 @@ contract PrelaunchPointsTest is Test {
         vm.warp(prelaunchPoints.loopActivation() + prelaunchPoints.TIMELOCK() + 1);
 
         vm.expectRevert(PrelaunchPoints.CurrentlyNotPossible.selector);
-        prelaunchPoints.claim(ETH, PrelaunchPoints.Exchange.UniswapV3, emptydata);
+        prelaunchPoints.claim(ETH, 100, PrelaunchPoints.Exchange.UniswapV3, emptydata);
     }
 
     /// ======= Tests for claimAndStake ======= ///
@@ -297,7 +297,7 @@ contract PrelaunchPointsTest is Test {
         prelaunchPoints.convertAllETH();
 
         vm.warp(prelaunchPoints.startClaimDate() + 1);
-        prelaunchPoints.claimAndStake(ETH, PrelaunchPoints.Exchange.UniswapV3, emptydata);
+        prelaunchPoints.claimAndStake(ETH, 100, PrelaunchPoints.Exchange.UniswapV3, emptydata);
 
         uint256 balanceLpETH = prelaunchPoints.totalLpETH() * lockAmount / prelaunchPoints.totalSupply();
 
@@ -330,7 +330,7 @@ contract PrelaunchPointsTest is Test {
         prelaunchPoints.convertAllETH();
 
         vm.warp(prelaunchPoints.startClaimDate() + 1);
-        prelaunchPoints.claimAndStake(ETH, PrelaunchPoints.Exchange.UniswapV3, emptydata);
+        prelaunchPoints.claimAndStake(ETH, 100, PrelaunchPoints.Exchange.UniswapV3, emptydata);
 
         uint256 balanceLpETH = prelaunchPoints.totalLpETH() * lockAmount / prelaunchPoints.totalSupply();
 
@@ -339,7 +339,7 @@ contract PrelaunchPointsTest is Test {
         assertEq(lpETHVault.balanceOf(address(this)), balanceLpETH);
 
         vm.prank(user1);
-        prelaunchPoints.claimAndStake(ETH, PrelaunchPoints.Exchange.UniswapV3, emptydata);
+        prelaunchPoints.claimAndStake(ETH, 100, PrelaunchPoints.Exchange.UniswapV3, emptydata);
         uint256 balanceLpETH1 = prelaunchPoints.totalLpETH() * lockAmount1 / prelaunchPoints.totalSupply();
 
         assertEq(prelaunchPoints.balances(user1, ETH), 0);
@@ -358,10 +358,10 @@ contract PrelaunchPointsTest is Test {
         prelaunchPoints.convertAllETH();
 
         vm.warp(prelaunchPoints.startClaimDate() + 1);
-        prelaunchPoints.claim(ETH, PrelaunchPoints.Exchange.UniswapV3, emptydata);
+        prelaunchPoints.claim(ETH, 100, PrelaunchPoints.Exchange.UniswapV3, emptydata);
 
         vm.expectRevert(PrelaunchPoints.NothingToClaim.selector);
-        prelaunchPoints.claimAndStake(ETH, PrelaunchPoints.Exchange.UniswapV3, emptydata);
+        prelaunchPoints.claimAndStake(ETH, 100, PrelaunchPoints.Exchange.UniswapV3, emptydata);
     }
 
     function testClaimAndStakeFailBeforeConvert(uint256 lockAmount) public {
@@ -374,7 +374,7 @@ contract PrelaunchPointsTest is Test {
         vm.warp(prelaunchPoints.loopActivation() + prelaunchPoints.TIMELOCK() + 1);
 
         vm.expectRevert(PrelaunchPoints.CurrentlyNotPossible.selector);
-        prelaunchPoints.claimAndStake(ETH, PrelaunchPoints.Exchange.UniswapV3, emptydata);
+        prelaunchPoints.claimAndStake(ETH, 100, PrelaunchPoints.Exchange.UniswapV3, emptydata);
     }
 
     /// ======= Tests for withdraw ETH ======= ///

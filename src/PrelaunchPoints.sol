@@ -195,25 +195,30 @@ contract PrelaunchPoints {
     /**
      * @dev Called by a user to get their vested lpETH
      * @param _token      Address of the token to convert to lpETH
+     * @param _percentage Proportion in % of tokens to withdraw. NOT useful for ETH
      * @param _exchange   Exchange identifier where the swap takes place
      * @param _data       Swap data obtained from 0x API
      */
-    function claim(address _token, Exchange _exchange, bytes calldata _data) external onlyAfterDate(startClaimDate) {
-        _claim(_token, msg.sender, _exchange, _data);
+    function claim(address _token, uint8 _percentage, Exchange _exchange, bytes calldata _data)
+        external
+        onlyAfterDate(startClaimDate)
+    {
+        _claim(_token, msg.sender, _percentage, _exchange, _data);
     }
 
     /**
      * @dev Called by a user to get their vested lpETH and stake them in a
      *      Loop vault for extra rewards
      * @param _token      Address of the token to convert to lpETH
+     * @param _percentage Proportion in % of tokens to withdraw. NOT useful for ETH
      * @param _exchange   Exchange identifier where the swap takes place
      * @param _data       Swap data obtained from 0x API
      */
-    function claimAndStake(address _token, Exchange _exchange, bytes calldata _data)
+    function claimAndStake(address _token, uint8 _percentage, Exchange _exchange, bytes calldata _data)
         external
         onlyAfterDate(startClaimDate)
     {
-        uint256 claimedAmount = _claim(_token, address(this), _exchange, _data);
+        uint256 claimedAmount = _claim(_token, address(this), _percentage, _exchange, _data);
         lpETH.approve(address(lpETHVault), claimedAmount);
         lpETHVault.stake(claimedAmount, msg.sender);
 
@@ -223,7 +228,7 @@ contract PrelaunchPoints {
     /**
      * @dev Claim logic. If necessary converts token to ETH before depositing into lpETH contract.
      */
-    function _claim(address _token, address _receiver, Exchange _exchange, bytes calldata _data)
+    function _claim(address _token, address _receiver, uint8 _percentage, Exchange _exchange, bytes calldata _data)
         internal
         returns (uint256 claimedAmount)
     {
@@ -236,12 +241,13 @@ contract PrelaunchPoints {
             balances[msg.sender][_token] = 0;
             lpETH.safeTransfer(_receiver, claimedAmount);
         } else {
-            _validateData(_token, userStake, _exchange, _data);
-            balances[msg.sender][_token] = 0;
+            uint256 userClaim = userStake * _percentage / 100;
+            _validateData(_token, userClaim, _exchange, _data);
+            balances[msg.sender][_token] = userStake - userClaim;
 
             // Swap token to ETH
             uint256 totalETH = address(this).balance;
-            _fillQuote(IERC20(_token), userStake, _data);
+            _fillQuote(IERC20(_token), userClaim, _data);
             claimedAmount = address(this).balance - totalETH;
 
             // Convert swapped ETH to lpETH (1 to 1 conversion)
