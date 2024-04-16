@@ -300,15 +300,15 @@ contract PrelaunchPoints {
         }
 
         // deposits all the ETH to lpETH contract. Receives lpETH back
-        if (totalSupply > 0) {
-            lpETH.deposit{value: totalSupply}(address(this));
-        }
+        uint256 totalBalance = address(this).balance;
+        lpETH.deposit{value: totalBalance}(address(this));
+
         totalLpETH = lpETH.balanceOf(address(this));
 
         // Claims of lpETH can start immediately after conversion.
         startClaimDate = uint32(block.timestamp);
 
-        emit Converted(totalSupply, totalLpETH);
+        emit Converted(totalBalance, totalLpETH);
     }
 
     /**
