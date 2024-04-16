@@ -33,7 +33,7 @@ To run the unit tests
 forge test
 ```
 
-To run the integration tests with 0x API run
+To run the integration tests with 0x API, first create and fill a `.env` file with the keys of `.env.example`. Then, run
 
 ```
 yarn hardhat test
