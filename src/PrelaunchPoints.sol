@@ -371,8 +371,7 @@ contract PrelaunchPoints {
      * Enable receive ETH
      * @dev ETH sent to this contract directly will be locked forever.
      */
-    receive() external payable {
-    }
+    receive() external payable {}
 
     /*//////////////////////////////////////////////////////////////
                             INTERNAL FUNCTIONS
@@ -394,12 +393,12 @@ contract PrelaunchPoints {
 
         if (_exchange == Exchange.UniswapV3) {
             (inputToken, outputToken, inputTokenAmount, recipient, selector) = _decodeUniswapV3Data(_data);
-            if (selector!= UNI_SELECTOR) {
+            if (selector != UNI_SELECTOR) {
                 revert WrongSelector(selector);
             }
         } else if (_exchange == Exchange.TransformERC20) {
             (inputToken, outputToken, inputTokenAmount, selector) = _decodeTransformERC20Data(_data);
-            if (selector!= TRANSFORM_SELECTOR){
+            if (selector != TRANSFORM_SELECTOR) {
                 revert WrongSelector(selector);
             }
         } else {
@@ -430,8 +429,8 @@ contract PrelaunchPoints {
         assembly {
             let p := _data.offset
             selector := calldataload(p)
-            p := add(p, 36) // Data: selector 4 + lenght data 32 
-            inputTokenAmount := calldataload(p) 
+            p := add(p, 36) // Data: selector 4 + lenght data 32
+            inputTokenAmount := calldataload(p)
             recipient := calldataload(add(p, 64))
             encodedPathLength := calldataload(add(p, 96)) // Get length of encodedPath (obtained through abi.encodePacked)
             inputToken := shr(96, calldataload(add(p, 128))) // Shift to the Right with 24 zeroes (12 bytes = 96 bits) to get address
@@ -451,9 +450,9 @@ contract PrelaunchPoints {
         assembly {
             let p := _data.offset
             selector := calldataload(p)
-            inputToken := calldataload(add(p,4)) // Read slot, selector 4 bytes
-            outputToken := calldataload(add(p,36)) // Read slot
-            inputTokenAmount := calldataload(add(p,68)) // Read slot
+            inputToken := calldataload(add(p, 4)) // Read slot, selector 4 bytes
+            outputToken := calldataload(add(p, 36)) // Read slot
+            inputTokenAmount := calldataload(add(p, 68)) // Read slot
         }
     }
 
