@@ -5,24 +5,26 @@ import "../../src/PrelaunchPoints.sol";
 
 contract AttackContract {
     PrelaunchPoints public prelaunchPoints;
+    address public constant ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    bytes emptydata = new bytes(1);
 
     constructor(PrelaunchPoints _prelaunchPoints) {
         prelaunchPoints = _prelaunchPoints;
     }
 
     function attackWithdraw() external {
-        prelaunchPoints.withdraw();
+        prelaunchPoints.withdraw(ETH);
     }
 
     function attackClaim() external {
-        prelaunchPoints.claim();
+        prelaunchPoints.claim(ETH, PrelaunchPoints.Exchange.UniswapV3, emptydata);
     }
 
     receive() external payable {
         if (address(prelaunchPoints).balance > 0) {
-            prelaunchPoints.withdraw();
+            prelaunchPoints.withdraw(ETH);
         } else {
-            prelaunchPoints.claim();
+            prelaunchPoints.claim(ETH, PrelaunchPoints.Exchange.UniswapV3, emptydata);
         }
     }
 }
