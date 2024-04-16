@@ -377,7 +377,7 @@ contract PrelaunchPointsTest is Test {
         prelaunchPoints.claimAndStake(ETH, PrelaunchPoints.Exchange.UniswapV3, emptydata);
     }
 
-    /// ======= Tests for withdraw ======= ///
+    /// ======= Tests for withdraw ETH ======= ///
     receive() external payable {}
 
     function testWithdrawETH(uint256 lockAmount) public {
@@ -401,6 +401,19 @@ contract PrelaunchPointsTest is Test {
 
         vm.expectRevert(PrelaunchPoints.CurrentlyNotPossible.selector);
         prelaunchPoints.withdraw(ETH);
+    }
+
+    function testWithdrawETHBeforeActivationEmergencyMode(uint256 lockAmount) public {
+        vm.assume(lockAmount > 0);
+        vm.deal(address(this), lockAmount);
+        prelaunchPoints.lockETH{value: lockAmount}(referral);
+
+        prelaunchPoints.setEmergencyMode(true);
+
+        prelaunchPoints.withdraw(ETH);
+        assertEq(prelaunchPoints.balances(address(this), ETH), 0);
+        assertEq(prelaunchPoints.totalSupply(), 0);
+        assertEq(address(this).balance, lockAmount);
     }
 
     function testWithdrawETHFailAfterConvert(uint256 lockAmount) public {
@@ -428,6 +441,76 @@ contract PrelaunchPointsTest is Test {
         vm.prank(address(lpETHVault));
         vm.expectRevert(PrelaunchPoints.FailedToSendEther.selector);
         prelaunchPoints.withdraw(ETH);
+    }
+
+    /// ======= Tests for withdraw ======= ///
+    function testWithdraw(uint256 lockAmount) public {
+        lockAmount = bound(lockAmount, 1, INITIAL_SUPPLY);
+        lrt.approve(address(prelaunchPoints), lockAmount);
+        prelaunchPoints.lock(address(lrt), lockAmount, referral);
+
+        uint256 balanceBefore = lrt.balanceOf(address(this));
+
+        prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
+        vm.warp(prelaunchPoints.loopActivation() + 1);
+        prelaunchPoints.withdraw(address(lrt));
+
+        assertEq(prelaunchPoints.balances(address(this), address(lrt)), 0);
+        assertEq(lrt.balanceOf(address(this)) - balanceBefore, lockAmount);
+    }
+
+    function testWithdrawFailBeforeActivation(uint256 lockAmount) public {
+        lockAmount = bound(lockAmount, 1, INITIAL_SUPPLY);
+        lrt.approve(address(prelaunchPoints), lockAmount);
+        prelaunchPoints.lock(address(lrt), lockAmount, referral);
+
+        vm.expectRevert(PrelaunchPoints.CurrentlyNotPossible.selector);
+        prelaunchPoints.withdraw(address(lrt));
+    }
+
+    function testWithdrawBeforeActivationEmergencyMode(uint256 lockAmount) public {
+        lockAmount = bound(lockAmount, 1, INITIAL_SUPPLY);
+        lrt.approve(address(prelaunchPoints), lockAmount);
+        prelaunchPoints.lock(address(lrt), lockAmount, referral);
+
+        uint256 balanceBefore = lrt.balanceOf(address(this));
+
+        prelaunchPoints.setEmergencyMode(true);
+
+        prelaunchPoints.withdraw(address(lrt));
+        assertEq(prelaunchPoints.balances(address(this), address(lrt)), 0);
+        assertEq(lrt.balanceOf(address(this)) - balanceBefore, lockAmount);
+    }
+
+    function testWithdrawFailAfterConvert(uint256 lockAmount) public {
+        lockAmount = bound(lockAmount, 1, INITIAL_SUPPLY);
+        lrt.approve(address(prelaunchPoints), lockAmount);
+        prelaunchPoints.lock(address(lrt), lockAmount, referral);
+
+        prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
+        vm.warp(prelaunchPoints.loopActivation() + prelaunchPoints.TIMELOCK() + 1);
+        prelaunchPoints.convertAllETH();
+
+        vm.expectRevert(PrelaunchPoints.NoLongerPossible.selector);
+        prelaunchPoints.withdraw(address(this));
+    }
+
+    function testWithdrawAfterConvertEmergencyMode(uint256 lockAmount) public {
+        lockAmount = bound(lockAmount, 1, INITIAL_SUPPLY);
+        lrt.approve(address(prelaunchPoints), lockAmount);
+        prelaunchPoints.lock(address(lrt), lockAmount, referral);
+
+        uint256 balanceBefore = lrt.balanceOf(address(this));
+
+        prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
+        vm.warp(prelaunchPoints.loopActivation() + prelaunchPoints.TIMELOCK() + 1);
+        prelaunchPoints.convertAllETH();
+
+        prelaunchPoints.setEmergencyMode(true);
+
+        prelaunchPoints.withdraw(address(lrt));
+        assertEq(prelaunchPoints.balances(address(this), address(lrt)), 0);
+        assertEq(lrt.balanceOf(address(this)) - balanceBefore, lockAmount);
     }
 
     /// ======= Tests for recoverERC20 ======= ///
@@ -488,6 +571,20 @@ contract PrelaunchPointsTest is Test {
         vm.prank(user1);
         vm.expectRevert(PrelaunchPoints.NotAuthorized.selector);
         prelaunchPoints.setOwner(user1);
+    }
+
+    /// ======= Tests for SetEmergencyMode ======= ///
+    function testSetEmergencyMode() public {
+        prelaunchPoints.setEmergencyMode(true);
+
+        assertEq(prelaunchPoints.emergencyMode(), true);
+    }
+
+    function testSetEmergencyModeFailNotAuthorized() public {
+        address user1 = vm.addr(1);
+        vm.prank(user1);
+        vm.expectRevert(PrelaunchPoints.NotAuthorized.selector);
+        prelaunchPoints.setEmergencyMode(true);
     }
 
     /// ======= Tests for AllowToken ======= ///
