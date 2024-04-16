@@ -2,6 +2,7 @@ import { HardhatUserConfig } from "hardhat/config"
 import "@nomicfoundation/hardhat-ethers"
 import "@nomicfoundation/hardhat-toolbox"
 import "@nomicfoundation/hardhat-foundry"
+import "hardhat-tracer"
 
 import "dotenv/config"
 
