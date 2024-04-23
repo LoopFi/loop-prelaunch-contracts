@@ -67,6 +67,7 @@ contract PrelaunchPoints {
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
 
+    error InvalidToken();
     error NothingToClaim();
     error TokenNotAllowed();
     error CannotLockZero();
@@ -138,6 +139,9 @@ contract PrelaunchPoints {
      * @param _referral  info of the referral. This value will be processed in the backend.
      */
     function lock(address _token, uint256 _amount, bytes32 _referral) external {
+        if (_token == ETH) {
+            revert InvalidToken();
+        }
         _processLock(_token, _amount, msg.sender, _referral);
     }
 
@@ -149,6 +153,9 @@ contract PrelaunchPoints {
      * @param _referral  info of the referral. This value will be processed in the backend.
      */
     function lockFor(address _token, uint256 _amount, address _for, bytes32 _referral) external {
+        if (_token == ETH) {
+            revert InvalidToken();
+        }
         _processLock(_token, _amount, _for, _referral);
     }
 
@@ -169,7 +176,7 @@ contract PrelaunchPoints {
         }
         if (_token == ETH) {
             totalSupply = totalSupply + _amount;
-            balances[_receiver][ETH] = balances[_receiver][_token] + _amount;
+            balances[_receiver][ETH] += _amount;
         } else {
             if (!isTokenAllowed[_token]) {
                 revert TokenNotAllowed();
@@ -179,9 +186,9 @@ contract PrelaunchPoints {
             if (_token == address(WETH)) {
                 WETH.withdraw(_amount);
                 totalSupply = totalSupply + _amount;
-                balances[_receiver][ETH] = balances[_receiver][_token] + _amount;
+                balances[_receiver][ETH] += _amount;
             } else {
-                balances[_receiver][_token] = balances[_receiver][_token] + _amount;
+                balances[_receiver][_token] += _amount;
             }
         }
 
@@ -300,7 +307,7 @@ contract PrelaunchPoints {
     /**
      * @dev Called by a owner to convert all the locked ETH to get lpETH
      */
-    function convertAllETH() external onlyAuthorized {
+    function convertAllETH() external onlyAuthorized onlyBeforeDate(startClaimDate) {
         if (block.timestamp - loopActivation <= TIMELOCK) {
             revert LoopNotActivated();
         }
