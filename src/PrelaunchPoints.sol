@@ -263,7 +263,7 @@ contract PrelaunchPoints {
     }
 
     /**
-     * @dev Called by a staker to withdraw all their ETH
+     * @dev Called by a staker to withdraw all their ETH or LRT
      * Note Can only be called after the loop address is set and before claiming lpETH,
      * i.e. for at least TIMELOCK. In emergency mode can be called at any time.
      * @param _token      Address of the token to withdraw
@@ -284,7 +284,8 @@ contract PrelaunchPoints {
         if (lockedAmount == 0) {
             revert CannotWithdrawZero();
         }
-        if (_token == ETH) {
+        if (_token == ETH && block.timestamp < startClaimDate) {
+            // If block.timestamp >= startClaimDate use claim to get your lpETH instead
             totalSupply = totalSupply - lockedAmount;
 
             (bool sent,) = msg.sender.call{value: lockedAmount}("");
