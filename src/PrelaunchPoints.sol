@@ -61,7 +61,7 @@ contract PrelaunchPoints {
     event Recovered(address token, uint256 amount);
     event OwnerUpdated(address newOwner);
     event LoopAddressesUpdated(address loopAddress, address vaultAddress);
-    event SwappedTokens(address sellToken, uint256 buyETHAmount);
+    event SwappedTokens(address sellToken, uint256 sellAmount, uint256 buyETHAmount);
 
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
@@ -252,13 +252,12 @@ contract PrelaunchPoints {
             _validateData(_token, userClaim, _exchange, _data);
             balances[msg.sender][_token] = userStake - userClaim;
 
+            // At this point there should not be any ETH in the contract
             // Swap token to ETH
-            uint256 totalETH = address(this).balance;
             _fillQuote(IERC20(_token), userClaim, _data);
-            claimedAmount = address(this).balance - totalETH;
 
             // Convert swapped ETH to lpETH (1 to 1 conversion)
-            lpETH.deposit{value: claimedAmount}(_receiver);
+            lpETH.deposit{value: address(this).balance}(_receiver);
         }
         emit Claimed(msg.sender, _token, claimedAmount);
     }
@@ -489,7 +488,7 @@ contract PrelaunchPoints {
 
         // Use our current buyToken balance to determine how much we've bought.
         boughtETHAmount = address(this).balance - boughtETHAmount;
-        emit SwappedTokens(address(_sellToken), boughtETHAmount);
+        emit SwappedTokens(address(_sellToken), _amount, boughtETHAmount);
     }
 
     /*//////////////////////////////////////////////////////////////
