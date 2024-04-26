@@ -72,6 +72,7 @@ contract PrelaunchPoints {
     error TokenNotAllowed();
     error CannotLockZero();
     error CannotWithdrawZero();
+    error UseClaimInstead();
     error FailedToSendEther();
     error SwapCallFailed();
     error WrongSelector(bytes4 selector);
@@ -257,7 +258,8 @@ contract PrelaunchPoints {
             _fillQuote(IERC20(_token), userClaim, _data);
 
             // Convert swapped ETH to lpETH (1 to 1 conversion)
-            lpETH.deposit{value: address(this).balance}(_receiver);
+            claimedAmount = address(this).balance;
+            lpETH.deposit{value: claimedAmount}(_receiver);
         }
         emit Claimed(msg.sender, _token, claimedAmount);
     }
@@ -284,8 +286,10 @@ contract PrelaunchPoints {
         if (lockedAmount == 0) {
             revert CannotWithdrawZero();
         }
-        if (_token == ETH && block.timestamp < startClaimDate) {
-            // If block.timestamp >= startClaimDate use claim to get your lpETH instead
+        if (_token == ETH) {
+            if (block.timestamp >= startClaimDate){
+                revert UseClaimInstead();
+            }
             totalSupply = totalSupply - lockedAmount;
 
             (bool sent,) = msg.sender.call{value: lockedAmount}("");
@@ -409,16 +413,23 @@ contract PrelaunchPoints {
             if (selector != UNI_SELECTOR) {
                 revert WrongSelector(selector);
             }
+            // UniswapV3Feature.sellTokenForEthToUniswapV3(encodedPath, sellAmount, minBuyAmount, recipient) requires `encodedPath` to be a Uniswap-encoded path, where the last token is WETH, and sends the NATIVE token to `recipient`
+            if (outputToken != address(WETH)) {
+                revert WrongDataTokens(inputToken, outputToken);
+            }
         } else if (_exchange == Exchange.TransformERC20) {
             (inputToken, outputToken, inputTokenAmount, selector) = _decodeTransformERC20Data(_data);
             if (selector != TRANSFORM_SELECTOR) {
                 revert WrongSelector(selector);
             }
+            if (outputToken != ETH) {
+                revert WrongDataTokens(inputToken, outputToken);
+            }
         } else {
             revert WrongExchange();
         }
 
-        if (inputToken != _token || (outputToken != ETH && outputToken != address(WETH))) {
+        if (inputToken != _token) {
             revert WrongDataTokens(inputToken, outputToken);
         }
         if (inputTokenAmount != _amount) {
