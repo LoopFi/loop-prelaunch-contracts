@@ -60,3 +60,7 @@ To get some metrics pre audit, run
 ```
 yarn solidity-code-metrics src/PrelaunchPoints.sol > metrics.md
 ```
+
+## References
+
+- LoopFi Documentation: https://docs.loopfi.xyz
