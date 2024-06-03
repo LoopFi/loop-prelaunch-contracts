@@ -29,6 +29,7 @@ contract PrelaunchPoints {
     address public immutable exchangeProxy;
 
     address public owner;
+    address public proposedOwner;
 
     uint256 public totalSupply;
     uint256 public totalLpETH;
@@ -46,6 +47,7 @@ contract PrelaunchPoints {
     uint32 public startClaimDate;
     uint32 public constant TIMELOCK = 7 days;
     bool public emergencyMode;
+    uint8 private receiveEnabled;
 
     mapping(address => mapping(address => uint256)) public balances; // User -> Token -> Balance
 
@@ -59,6 +61,7 @@ contract PrelaunchPoints {
     event Withdrawn(address indexed user, address token, uint256 amount);
     event Claimed(address indexed user, address token, uint256 reward);
     event Recovered(address token, uint256 amount);
+    event OwnerProposed(address newOwner);
     event OwnerUpdated(address newOwner);
     event LoopAddressesUpdated(address loopAddress, address vaultAddress);
     event SwappedTokens(address sellToken, uint256 sellAmount, uint256 buyETHAmount);
@@ -71,9 +74,11 @@ contract PrelaunchPoints {
     error NothingToClaim();
     error TokenNotAllowed();
     error CannotLockZero();
+    error CannotClaimZero();
     error CannotWithdrawZero();
     error UseClaimInstead();
     error FailedToSendEther();
+    error SellTokenApprovalFailed();
     error SwapCallFailed();
     error WrongSelector(bytes4 selector);
     error WrongDataTokens(address inputToken, address outputToken);
@@ -83,8 +88,10 @@ contract PrelaunchPoints {
     error LoopNotActivated();
     error NotValidToken();
     error NotAuthorized();
+    error NotProposedOwner();
     error CurrentlyNotPossible();
     error NoLongerPossible();
+    error ReceiveDisabled();
 
     /*//////////////////////////////////////////////////////////////
                              INITIALIZATION
@@ -100,6 +107,7 @@ contract PrelaunchPoints {
 
         loopActivation = uint32(block.timestamp + 120 days);
         startClaimDate = 4294967295; // Max uint32 ~ year 2107
+        _disableReceive();
 
         // Allow intital list of tokens
         uint256 length = _allowedTokens.length;
@@ -185,7 +193,9 @@ contract PrelaunchPoints {
             IERC20(_token).safeTransferFrom(msg.sender, address(this), _amount);
 
             if (_token == address(WETH)) {
+                _enableReceive();
                 WETH.withdraw(_amount);
+                _disableReceive();
                 totalSupply = totalSupply + _amount;
                 balances[_receiver][ETH] += _amount;
             } else {
@@ -240,6 +250,9 @@ contract PrelaunchPoints {
         internal
         returns (uint256 claimedAmount)
     {
+        if (_percentage == 0) {
+            revert CannotClaimZero();
+        }
         uint256 userStake = balances[msg.sender][_token];
         if (userStake == 0) {
             revert NothingToClaim();
@@ -247,7 +260,9 @@ contract PrelaunchPoints {
         if (_token == ETH) {
             claimedAmount = userStake.mulDiv(totalLpETH, totalSupply);
             balances[msg.sender][_token] = 0;
-            lpETH.safeTransfer(_receiver, claimedAmount);
+            if (_receiver != address(this)){
+                lpETH.safeTransfer(_receiver, claimedAmount);
+            }  
         } else {
             uint256 userClaim = userStake * _percentage / 100;
             _validateData(_token, userClaim, _exchange, _data);
@@ -266,15 +281,12 @@ contract PrelaunchPoints {
 
     /**
      * @dev Called by a staker to withdraw all their ETH or LRT
-     * Note Can only be called after the loop address is set and before claiming lpETH,
-     * i.e. for at least TIMELOCK. In emergency mode can be called at any time.
+     * Note Can only be called before claiming lpETH has started.
+     * In emergency mode can be called at any time.
      * @param _token      Address of the token to withdraw
      */
     function withdraw(address _token) external {
         if (!emergencyMode) {
-            if (block.timestamp <= loopActivation) {
-                revert CurrentlyNotPossible();
-            }
             if (block.timestamp >= startClaimDate) {
                 revert NoLongerPossible();
             }
@@ -329,13 +341,25 @@ contract PrelaunchPoints {
     }
 
     /**
-     * @notice Sets a new owner
+     * @notice Sets a new proposedOwner
      * @param _owner address of the new owner
      */
-    function setOwner(address _owner) external onlyAuthorized {
-        owner = _owner;
+    function proposeOwner(address _owner) external onlyAuthorized {
+        proposedOwner = _owner;
 
-        emit OwnerUpdated(_owner);
+        emit OwnerProposed(_owner);
+    }
+
+    /**
+     * @notice Proposed owner accepts the ownership. 
+     * Can only be called by current proposed owner.
+     */
+    function acceptOwnership() external {
+        if (msg.sender != proposedOwner) {
+            revert NotProposedOwner();
+        }
+        owner = proposedOwner;
+        emit OwnerUpdated(owner);
     }
 
     /**
@@ -388,11 +412,22 @@ contract PrelaunchPoints {
      * Enable receive ETH
      * @dev ETH sent to this contract directly will be locked forever.
      */
-    receive() external payable {}
+    receive() external payable {
+        if (receiveEnabled == 1) {
+            revert ReceiveDisabled();
+        }
+    }
 
     /*//////////////////////////////////////////////////////////////
                             INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
+
+    function _enableReceive() internal {
+        receiveEnabled = 2;
+    }
+    function _disableReceive() internal {
+        receiveEnabled = 1;
+    }
 
     /**
      * @notice Validates the data sent from 0x API to match desired behaviour
@@ -417,6 +452,9 @@ contract PrelaunchPoints {
             if (outputToken != address(WETH)) {
                 revert WrongDataTokens(inputToken, outputToken);
             }
+            if (recipient != address(this)) {
+            revert WrongRecipient(recipient);
+        }
         } else if (_exchange == Exchange.TransformERC20) {
             (inputToken, outputToken, inputTokenAmount, selector) = _decodeTransformERC20Data(_data);
             if (selector != TRANSFORM_SELECTOR) {
@@ -435,9 +473,7 @@ contract PrelaunchPoints {
         if (inputTokenAmount != _amount) {
             revert WrongDataAmount(inputTokenAmount);
         }
-        if (recipient != address(this) && recipient != address(0)) {
-            revert WrongRecipient(recipient);
-        }
+        
     }
 
     /**
@@ -491,9 +527,13 @@ contract PrelaunchPoints {
         // Track our balance of the buyToken to determine how much we've bought.
         uint256 boughtETHAmount = address(this).balance;
 
-        require(_sellToken.approve(exchangeProxy, _amount));
-
+        if (!_sellToken.approve(exchangeProxy, _amount)) {
+            revert SellTokenApprovalFailed();
+        }
+        _enableReceive();
         (bool success,) = payable(exchangeProxy).call{value: 0}(_swapCallData);
+        _disableReceive();
+
         if (!success) {
             revert SwapCallFailed();
         }

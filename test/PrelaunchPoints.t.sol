@@ -394,13 +394,16 @@ contract PrelaunchPointsTest is Test {
         assertEq(address(this).balance, lockAmount);
     }
 
-    function testWithdrawETHFailBeforeActivation(uint256 lockAmount) public {
+    function testWithdrawETHBeforeActivation(uint256 lockAmount) public {
         vm.assume(lockAmount > 0);
         vm.deal(address(this), lockAmount);
         prelaunchPoints.lockETH{value: lockAmount}(referral);
 
-        vm.expectRevert(PrelaunchPoints.CurrentlyNotPossible.selector);
         prelaunchPoints.withdraw(ETH);
+
+        assertEq(prelaunchPoints.balances(address(this), ETH), 0);
+        assertEq(prelaunchPoints.totalSupply(), 0);
+        assertEq(address(this).balance, lockAmount);
     }
 
     function testWithdrawETHBeforeActivationEmergencyMode(uint256 lockAmount) public {
@@ -459,13 +462,16 @@ contract PrelaunchPointsTest is Test {
         assertEq(lrt.balanceOf(address(this)) - balanceBefore, lockAmount);
     }
 
-    function testWithdrawFailBeforeActivation(uint256 lockAmount) public {
+    function testWithdrawBeforeActivation(uint256 lockAmount) public {
         lockAmount = bound(lockAmount, 1, INITIAL_SUPPLY);
         lrt.approve(address(prelaunchPoints), lockAmount);
         prelaunchPoints.lock(address(lrt), lockAmount, referral);
 
-        vm.expectRevert(PrelaunchPoints.CurrentlyNotPossible.selector);
+        uint256 balanceBefore = lrt.balanceOf(address(this));
         prelaunchPoints.withdraw(address(lrt));
+
+        assertEq(prelaunchPoints.balances(address(this), address(lrt)), 0);
+        assertEq(lrt.balanceOf(address(this)) - balanceBefore, lockAmount);
     }
 
     function testWithdrawBeforeActivationEmergencyMode(uint256 lockAmount) public {
@@ -561,7 +567,12 @@ contract PrelaunchPointsTest is Test {
     /// ======= Tests for SetOwner ======= ///
     function testSetOwner() public {
         address user1 = vm.addr(1);
-        prelaunchPoints.setOwner(user1);
+        prelaunchPoints.proposeOwner(user1);
+
+        assertEq(prelaunchPoints.proposedOwner(), user1);
+
+        vm.prank(user1);
+        prelaunchPoints.acceptOwnership();
 
         assertEq(prelaunchPoints.owner(), user1);
     }
@@ -570,7 +581,19 @@ contract PrelaunchPointsTest is Test {
         address user1 = vm.addr(1);
         vm.prank(user1);
         vm.expectRevert(PrelaunchPoints.NotAuthorized.selector);
-        prelaunchPoints.setOwner(user1);
+        prelaunchPoints.proposeOwner(user1);
+    }
+
+    function testAcceptOwnershipNotAuthorized() public {
+        address user1 = vm.addr(1);
+        address user2 = vm.addr(2);
+        prelaunchPoints.proposeOwner(user1);
+
+        assertEq(prelaunchPoints.proposedOwner(), user1);
+
+        vm.prank(user2);
+        vm.expectRevert(PrelaunchPoints.NotProposedOwner.selector);
+        prelaunchPoints.acceptOwnership();
     }
 
     /// ======= Tests for SetEmergencyMode ======= ///
@@ -599,6 +622,14 @@ contract PrelaunchPointsTest is Test {
         vm.prank(user1);
         vm.expectRevert(PrelaunchPoints.NotAuthorized.selector);
         prelaunchPoints.allowToken(ETH);
+    }
+
+    /// ======== Test for receive ETH ========= ///
+    function testReceiveDirectEthFail() public {
+        vm.deal(address(this), 1 ether);
+
+        vm.expectRevert(PrelaunchPoints.ReceiveDisabled.selector);
+        address(prelaunchPoints).call{value: 1 ether}("");
     }
 
     /// ======= Reentrancy Tests ======= ///
