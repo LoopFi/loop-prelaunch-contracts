@@ -7,8 +7,8 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 contract MockLpETH is ILpETH, ERC20 {
     constructor() ERC20("LoopETH", "lpETH") {}
 
-    function deposit(address receiver) external payable returns (uint256) {
-        super._mint(receiver, msg.value);
-        return msg.value;
+    function deposit(uint256 amount, address receiver) external returns (uint256) {
+        super._mint(receiver, amount);
+        return amount;
     }
 }

@@ -8,6 +8,8 @@ import {ILpETH, IERC20} from "./interfaces/ILpETH.sol";
 import {ILpETHVault} from "./interfaces/ILpETHVault.sol";
 import {IWETH} from "./interfaces/IWETH.sol";
 
+import "forge-std/console.sol";
+
 /**
  * @title   PrelaunchPoints
  * @author  Loop
@@ -47,7 +49,6 @@ contract PrelaunchPoints {
     uint32 public startClaimDate;
     uint32 public constant TIMELOCK = 7 days;
     bool public emergencyMode;
-    uint8 private receiveEnabled;
 
     mapping(address => mapping(address => uint256)) public balances; // User -> Token -> Balance
 
@@ -55,11 +56,11 @@ contract PrelaunchPoints {
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
 
-    event Locked(address indexed user, uint256 amount, address token, bytes32 indexed referral);
-    event StakedVault(address indexed user, uint256 amount);
+    event Locked(address indexed user, uint256 amount, address indexed token, bytes32 indexed referral);
+    event StakedVault(address indexed user, uint256 amount, uint256 typeIndex);
     event Converted(uint256 amountETH, uint256 amountlpETH);
-    event Withdrawn(address indexed user, address token, uint256 amount);
-    event Claimed(address indexed user, address token, uint256 reward);
+    event Withdrawn(address indexed user, address indexed token, uint256 amount);
+    event Claimed(address indexed user, address indexed token, uint256 reward);
     event Recovered(address token, uint256 amount);
     event OwnerProposed(address newOwner);
     event OwnerUpdated(address newOwner);
@@ -107,7 +108,6 @@ contract PrelaunchPoints {
 
         loopActivation = uint32(block.timestamp + 120 days);
         startClaimDate = 4294967295; // Max uint32 ~ year 2107
-        _disableReceive();
 
         // Allow intital list of tokens
         uint256 length = _allowedTokens.length;
@@ -184,8 +184,10 @@ contract PrelaunchPoints {
             revert CannotLockZero();
         }
         if (_token == ETH) {
-            totalSupply = totalSupply + _amount;
-            balances[_receiver][ETH] += _amount;
+            console.log("HERE", _amount);
+            WETH.deposit{value: _amount}();
+            totalSupply += _amount;
+            balances[_receiver][address(WETH)] += _amount;
         } else {
             if (!isTokenAllowed[_token]) {
                 revert TokenNotAllowed();
@@ -193,14 +195,9 @@ contract PrelaunchPoints {
             IERC20(_token).safeTransferFrom(msg.sender, address(this), _amount);
 
             if (_token == address(WETH)) {
-                _enableReceive();
-                WETH.withdraw(_amount);
-                _disableReceive();
-                totalSupply = totalSupply + _amount;
-                balances[_receiver][ETH] += _amount;
-            } else {
-                balances[_receiver][_token] += _amount;
-            }
+                totalSupply += _amount;
+            } 
+            balances[_receiver][_token] += _amount;
         }
 
         emit Locked(_receiver, _amount, _token, _referral);
@@ -230,17 +227,18 @@ contract PrelaunchPoints {
      * @param _token      Address of the token to convert to lpETH
      * @param _percentage Proportion in % of tokens to withdraw. NOT useful for ETH
      * @param _exchange   Exchange identifier where the swap takes place
+     * @param _typeIndex  lock type index determining lock period and rewards multiplier.
      * @param _data       Swap data obtained from 0x API
      */
-    function claimAndStake(address _token, uint8 _percentage, Exchange _exchange, bytes calldata _data)
+    function claimAndStake(address _token, uint8 _percentage, Exchange _exchange, uint256 _typeIndex, bytes calldata _data)
         external
         onlyAfterDate(startClaimDate)
     {
         uint256 claimedAmount = _claim(_token, address(this), _percentage, _exchange, _data);
         lpETH.approve(address(lpETHVault), claimedAmount);
-        lpETHVault.stake(claimedAmount, msg.sender);
+        lpETHVault.stake(claimedAmount, msg.sender, _typeIndex);
 
-        emit StakedVault(msg.sender, claimedAmount);
+        emit StakedVault(msg.sender, claimedAmount, _typeIndex);
     }
 
     /**
@@ -257,7 +255,7 @@ contract PrelaunchPoints {
         if (userStake == 0) {
             revert NothingToClaim();
         }
-        if (_token == ETH) {
+        if (_token == address(WETH)) {
             claimedAmount = userStake.mulDiv(totalLpETH, totalSupply);
             balances[msg.sender][_token] = 0;
             if (_receiver != address(this)){
@@ -273,8 +271,9 @@ contract PrelaunchPoints {
             _fillQuote(IERC20(_token), userClaim, _data);
 
             // Convert swapped ETH to lpETH (1 to 1 conversion)
-            claimedAmount = address(this).balance;
-            lpETH.deposit{value: claimedAmount}(_receiver);
+            claimedAmount = WETH.balanceOf(address(this));
+            WETH.approve(address(lpETH), claimedAmount);
+            lpETH.deposit(claimedAmount, _receiver);
         }
         emit Claimed(msg.sender, _token, claimedAmount);
     }
@@ -298,20 +297,13 @@ contract PrelaunchPoints {
         if (lockedAmount == 0) {
             revert CannotWithdrawZero();
         }
-        if (_token == ETH) {
+        if (_token == address(WETH)) {
             if (block.timestamp >= startClaimDate){
                 revert UseClaimInstead();
             }
-            totalSupply = totalSupply - lockedAmount;
-
-            (bool sent,) = msg.sender.call{value: lockedAmount}("");
-
-            if (!sent) {
-                revert FailedToSendEther();
-            }
-        } else {
-            IERC20(_token).safeTransfer(msg.sender, lockedAmount);
+            totalSupply -= lockedAmount;
         }
+        IERC20(_token).safeTransfer(msg.sender, lockedAmount);
 
         emit Withdrawn(msg.sender, _token, lockedAmount);
     }
@@ -319,7 +311,6 @@ contract PrelaunchPoints {
     /*//////////////////////////////////////////////////////////////
                             PROTECTED FUNCTIONS
     //////////////////////////////////////////////////////////////*/
-
     /**
      * @dev Called by a owner to convert all the locked ETH to get lpETH
      */
@@ -328,16 +319,16 @@ contract PrelaunchPoints {
             revert LoopNotActivated();
         }
 
-        // deposits all the ETH to lpETH contract. Receives lpETH back
-        uint256 totalBalance = address(this).balance;
-        lpETH.deposit{value: totalBalance}(address(this));
+        // deposits all the WETH to lpETH contract. Receives lpETH back
+        WETH.approve(address(lpETH), totalSupply);
+        lpETH.deposit(totalSupply, address(this));
 
         totalLpETH = lpETH.balanceOf(address(this));
 
         // Claims of lpETH can start immediately after conversion.
         startClaimDate = uint32(block.timestamp);
 
-        emit Converted(totalBalance, totalLpETH);
+        emit Converted(totalSupply, totalLpETH);
     }
 
     /**
@@ -409,26 +400,15 @@ contract PrelaunchPoints {
     }
 
     /**
-     * Enable receive ETH
-     * @dev ETH sent to this contract directly will be locked forever.
+     * Disable receive ETH
      */
     receive() external payable {
-        if (receiveEnabled == 1) {
-            revert ReceiveDisabled();
-        }
+        revert ReceiveDisabled();
     }
 
     /*//////////////////////////////////////////////////////////////
                             INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
-
-    function _enableReceive() internal {
-        receiveEnabled = 2;
-    }
-    function _disableReceive() internal {
-        receiveEnabled = 1;
-    }
-
     /**
      * @notice Validates the data sent from 0x API to match desired behaviour
      * @param _token     address of the token to sell
@@ -525,22 +505,21 @@ contract PrelaunchPoints {
 
     function _fillQuote(IERC20 _sellToken, uint256 _amount, bytes calldata _swapCallData) internal {
         // Track our balance of the buyToken to determine how much we've bought.
-        uint256 boughtETHAmount = address(this).balance;
+        uint256 boughtWETHAmount = WETH.balanceOf(address(this));
 
         if (!_sellToken.approve(exchangeProxy, _amount)) {
             revert SellTokenApprovalFailed();
         }
-        _enableReceive();
+
         (bool success,) = payable(exchangeProxy).call{value: 0}(_swapCallData);
-        _disableReceive();
 
         if (!success) {
             revert SwapCallFailed();
         }
 
         // Use our current buyToken balance to determine how much we've bought.
-        boughtETHAmount = address(this).balance - boughtETHAmount;
-        emit SwappedTokens(address(_sellToken), _amount, boughtETHAmount);
+        boughtWETHAmount = WETH.balanceOf(address(this)) - boughtWETHAmount;
+        emit SwappedTokens(address(_sellToken), _amount, boughtWETHAmount);
     }
 
     /*//////////////////////////////////////////////////////////////
