@@ -8,8 +8,6 @@ import {ILpETH, IERC20} from "./interfaces/ILpETH.sol";
 import {ILpETHVault} from "./interfaces/ILpETHVault.sol";
 import {IWETH} from "./interfaces/IWETH.sol";
 
-import "forge-std/console.sol";
-
 /**
  * @title   PrelaunchPoints
  * @author  Loop
@@ -184,7 +182,6 @@ contract PrelaunchPoints {
             revert CannotLockZero();
         }
         if (_token == ETH) {
-            console.log("HERE", _amount);
             WETH.deposit{value: _amount}();
             totalSupply += _amount;
             balances[_receiver][address(WETH)] += _amount;
@@ -440,7 +437,7 @@ contract PrelaunchPoints {
             if (selector != TRANSFORM_SELECTOR) {
                 revert WrongSelector(selector);
             }
-            if (outputToken != ETH) {
+            if (outputToken != address(WETH)) {
                 revert WrongDataTokens(inputToken, outputToken);
             }
         } else {
