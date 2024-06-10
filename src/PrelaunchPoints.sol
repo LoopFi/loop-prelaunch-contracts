@@ -176,7 +176,7 @@ contract PrelaunchPoints {
      */
     function _processLock(address _token, uint256 _amount, address _receiver, bytes32 _referral)
         internal
-        onlyBeforeDate(loopActivation)
+        onlyBeforeDate(startClaimDate)
     {
         if (_amount == 0) {
             revert CannotLockZero();

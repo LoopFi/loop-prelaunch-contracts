@@ -60,8 +60,11 @@ contract PrelaunchPointsTest is Test {
 
     function testLockETHFailActivation(uint256 lockAmount) public {
         lockAmount = bound(lockAmount, 1, INITIAL_SUPPLY * 1e10);
-        // Should revert after setting the loop addresses
+        // Should revert after starting the claim
         prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
+        vm.warp(prelaunchPoints.loopActivation() + prelaunchPoints.TIMELOCK() + 1);
+        prelaunchPoints.convertAllETH();
+        vm.warp(prelaunchPoints.startClaimDate() + 1);
 
         vm.deal(address(this), lockAmount);
         vm.expectRevert(PrelaunchPoints.NoLongerPossible.selector);
@@ -88,8 +91,11 @@ contract PrelaunchPointsTest is Test {
     function testLockETHForFailActivation(uint256 lockAmount) public {
         lockAmount = bound(lockAmount, 1, INITIAL_SUPPLY * 1e10);
         address recipient = address(0x1234);
-        // Should revert after setting the loop addresses
+        // Should revert after starting the claim
         prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
+        vm.warp(prelaunchPoints.loopActivation() + prelaunchPoints.TIMELOCK() + 1);
+        prelaunchPoints.convertAllETH();
+        vm.warp(prelaunchPoints.startClaimDate() + 1);
 
         vm.deal(address(this), lockAmount);
         vm.expectRevert(PrelaunchPoints.NoLongerPossible.selector);
@@ -123,8 +129,11 @@ contract PrelaunchPointsTest is Test {
     function testLockFailActivation(uint256 lockAmount) public {
         lockAmount = bound(lockAmount, 1, INITIAL_SUPPLY);
         lrt.approve(address(prelaunchPoints), lockAmount);
-        // Should revert after setting the loop addresses
+        // Should revert after starting the claim
         prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
+        vm.warp(prelaunchPoints.loopActivation() + prelaunchPoints.TIMELOCK() + 1);
+        prelaunchPoints.convertAllETH();
+        vm.warp(prelaunchPoints.startClaimDate() + 1);
 
         vm.expectRevert(PrelaunchPoints.NoLongerPossible.selector);
         prelaunchPoints.lock(address(lrt), lockAmount, referral);
@@ -133,8 +142,11 @@ contract PrelaunchPointsTest is Test {
     function testLockWETHFailActivation(uint256 lockAmount) public {
         lockAmount = bound(lockAmount, 1, INITIAL_SUPPLY);
         weth.approve(address(prelaunchPoints), lockAmount);
-        // Should revert after setting the loop addresses
+        // Should revert after starting the claim
         prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
+        vm.warp(prelaunchPoints.loopActivation() + prelaunchPoints.TIMELOCK() + 1);
+        prelaunchPoints.convertAllETH();
+        vm.warp(prelaunchPoints.startClaimDate() + 1);
 
         vm.expectRevert(PrelaunchPoints.NoLongerPossible.selector);
         prelaunchPoints.lock(WETH, lockAmount, referral);
@@ -179,8 +191,11 @@ contract PrelaunchPointsTest is Test {
     function testLockForFailActivation(uint256 lockAmount) public {
         lockAmount = bound(lockAmount, 1, INITIAL_SUPPLY);
         address recipient = address(0x1234);
-        // Should revert after setting the loop addresses
+        // Should revert after starting the claim
         prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
+        vm.warp(prelaunchPoints.loopActivation() + prelaunchPoints.TIMELOCK() + 1);
+        prelaunchPoints.convertAllETH();
+        vm.warp(prelaunchPoints.startClaimDate() + 1);
 
         lrt.approve(address(prelaunchPoints), lockAmount);
         vm.expectRevert(PrelaunchPoints.NoLongerPossible.selector);
@@ -190,8 +205,11 @@ contract PrelaunchPointsTest is Test {
     function testLockForWETHFailActivation(uint256 lockAmount) public {
         lockAmount = bound(lockAmount, 1, INITIAL_SUPPLY);
         address recipient = address(0x1234);
-        // Should revert after setting the loop addresses
+        // Should revert after starting the claim
         prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
+        vm.warp(prelaunchPoints.loopActivation() + prelaunchPoints.TIMELOCK() + 1);
+        prelaunchPoints.convertAllETH();
+        vm.warp(prelaunchPoints.startClaimDate() + 1);
 
         weth.approve(address(prelaunchPoints), lockAmount);
         vm.expectRevert(PrelaunchPoints.NoLongerPossible.selector);
