@@ -19,14 +19,9 @@ const ZEROX_API_KEY = process.env.ZEROX_API_KEY || ""
 
 const tokens = [
   {
-    name: "WETH",
-    address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
-    whale: "0x2fEb1512183545f48f6b9C5b4EbfCaF49CfCa6F3",
-  },
-  {
     name: "weETH",
     address: "0xcd5fe23c85820f7b72d0926fc9b05b43e359b7ee",
-    whale: "0x1C3DC4F4eE50D483289beF519C598847cd447A19",
+    whale: "0x267ed5f71EE47D3E45Bb1569Aa37889a2d10f91e",
   },
   {
     name: "ezETH",
@@ -56,6 +51,7 @@ const tokens = [
 ]
 
 describe("0x API integration", function () {
+  const WETH = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
   const ETH = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
   const exchangeProxy = "0xdef1c0ded9bec7f1a1670819833240f027b25eff"
 
@@ -82,8 +78,8 @@ describe("0x API integration", function () {
     )
     prelaunchPoints = (await PrelaunchPoints.deploy(
       exchangeProxy,
-      tokens[0].address,
-      tokens.slice(1).map((token) => token.address)
+      WETH,
+      tokens.map((token) => token.address)
     )) as unknown as PrelaunchPoints
   })
 
@@ -111,7 +107,7 @@ describe("0x API integration", function () {
 
       // Get post-lock balances
       const tokenBalanceAfter = await lockToken.balanceOf(depositor)
-      const claimToken = token.name == "WETH" ? ETH : token.address
+      const claimToken = token.address
       const lockedBalance = await prelaunchPoints.balances(
         depositor.address,
         claimToken
@@ -131,7 +127,7 @@ describe("0x API integration", function () {
       // Get Quote from 0x API
       const headers = { "0x-api-key": ZEROX_API_KEY }
       const quoteResponse = await fetch(
-        `https://api.0x.org/swap/v1/quote?buyToken=${ETH}&sellAmount=${sellAmount}&sellToken=${token.address}`,
+        `https://api.0x.org/swap/v1/quote?buyToken=${WETH}&sellAmount=${sellAmount}&sellToken=${token.address}`,
         { headers }
       )
 
@@ -145,7 +141,7 @@ describe("0x API integration", function () {
       // console.log(quote)
 
       const exchange = quote.orders[0] ? quote.orders[0].source : ""
-      const exchangeCode = exchange == "Uniswap_V3" ? 0 : 1
+      const exchangeCode = 1 //exchange == "Uniswap_V3" ? 0 : 1
 
       // Claim
       await prelaunchPoints
@@ -182,7 +178,7 @@ describe("0x API integration", function () {
 
       // Get post-lock balances
       const tokenBalanceAfter = await lockToken.balanceOf(depositor)
-      const claimToken = token.name == "WETH" ? ETH : token.address
+      const claimToken = token.address
       const lockedBalance = await prelaunchPoints.balances(
         depositor.address,
         claimToken
@@ -202,7 +198,7 @@ describe("0x API integration", function () {
       // Get Quote from 0x API
       const headers = { "0x-api-key": ZEROX_API_KEY }
       const quoteResponse = await fetch(
-        `https://api.0x.org/swap/v1/quote?buyToken=${ETH}&sellAmount=${sellAmount}&sellToken=${token.address}`,
+        `https://api.0x.org/swap/v1/quote?buyToken=${WETH}&sellAmount=${sellAmount}&sellToken=${token.address}`,
         { headers }
       )
 
@@ -216,12 +212,12 @@ describe("0x API integration", function () {
       // console.log(quote)
 
       const exchange = quote.orders[0] ? quote.orders[0].source : ""
-      const exchangeCode = exchange == "Uniswap_V3" ? 0 : 1
+      const exchangeCode = 1 // exchange == "Uniswap_V3" ? 0 : 1
 
       // Claim
       await prelaunchPoints
         .connect(depositor)
-        .claimAndStake(claimToken, 100, exchangeCode, quote.data)
+        .claimAndStake(claimToken, 100, exchangeCode, 0, quote.data)
 
       expect(await prelaunchPoints.balances(depositor, token.address)).to.be.eq(
         0
