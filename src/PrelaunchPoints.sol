@@ -262,13 +262,13 @@ contract PrelaunchPoints {
             uint256 userClaim = userStake * _percentage / 100;
             _validateData(_token, userClaim, _exchange, _data);
             balances[msg.sender][_token] = userStake - userClaim;
+            uint256 balanceWethBefore = WETH.balanceOf(address(this));
 
-            // At this point there should not be any ETH in the contract
             // Swap token to ETH
             _fillQuote(IERC20(_token), userClaim, _data);
 
             // Convert swapped ETH to lpETH (1 to 1 conversion)
-            claimedAmount = WETH.balanceOf(address(this));
+            claimedAmount = WETH.balanceOf(address(this)) - balanceWethBefore;
             WETH.approve(address(lpETH), claimedAmount);
             lpETH.deposit(claimedAmount, _receiver);
         }
@@ -320,6 +320,7 @@ contract PrelaunchPoints {
         WETH.approve(address(lpETH), totalSupply);
         lpETH.deposit(totalSupply, address(this));
 
+        // If there is extra lpETH (sent by external actor) then it is distributed amoung all users
         totalLpETH = lpETH.balanceOf(address(this));
 
         // Claims of lpETH can start immediately after conversion.
@@ -425,7 +426,7 @@ contract PrelaunchPoints {
             if (selector != UNI_SELECTOR) {
                 revert WrongSelector(selector);
             }
-            // UniswapV3Feature.sellTokenForEthToUniswapV3(encodedPath, sellAmount, minBuyAmount, recipient) requires `encodedPath` to be a Uniswap-encoded path, where the last token is WETH, and sends the NATIVE token to `recipient`
+            // UniswapV3Feature.sellTokenForEthToUniswapV3(encodedPath, sellAmount, minBuyAmount, recipient) requires `encodedPath` to be a Uniswap-encoded path, where the last token is WETH
             if (outputToken != address(WETH)) {
                 revert WrongDataTokens(inputToken, outputToken);
             }
