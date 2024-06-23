@@ -1,0 +1,44 @@
+{
+  "name": "loop-prelaunch-contracts",
+  "version": "1.0.0",
+  "description": "![](./img/icon-loop.png)",
+  "directories": {
+    "lib": "lib",
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.6",
+    "@nomicfoundation/hardhat-ethers": "^3.0.5",
+    "@nomicfoundation/hardhat-foundry": "^1.1.1",
+    "@nomicfoundation/hardhat-ignition": "^0.15.0",
+    "@nomicfoundation/hardhat-ignition-ethers": "^0.15.0",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.10",
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@nomicfoundation/hardhat-verify": "^2.0.0",
+    "@nomicfoundation/ignition-core": "^0.15.0",
+    "@typechain/ethers-v6": "^0.5.1",
+    "@typechain/hardhat": "^9.1.0",
+    "@types/chai": "^4.3.14",
+    "@types/mocha": "^10.0.6",
+    "@types/node": "^20.12.4",
+    "@types/node-fetch": "^2.6.11",
+    "chai": "^4.2.0",
+    "dotenv": "^16.4.5",
+    "ethers": "^6.11.1",
+    "hardhat": "2.20.1",
+    "hardhat-gas-reporter": "^1.0.8",
+    "hardhat-tracer": "^2.8.1",
+    "node-fetch": "^2.6.7",
+    "solidity-code-metrics": "^0.0.26",
+    "solidity-coverage": "^0.8.1",
+    "ts-node": "^10.9.2",
+    "typechain": "^8.3.2",
+    "typescript": "^5.4.3"
+  }
+}
