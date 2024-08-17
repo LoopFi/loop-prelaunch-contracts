@@ -6,7 +6,7 @@ import "hardhat-tracer"
 
 import "dotenv/config"
 
-const RPC_URL = process.env.SCROLL_RPC_URL || "https://rpc.scroll.io/"
+const RPC_URL = process.env.RPC_URL || "https://eth.llamarpc.com"
 
 const config: HardhatUserConfig = {
   solidity: "0.8.20",

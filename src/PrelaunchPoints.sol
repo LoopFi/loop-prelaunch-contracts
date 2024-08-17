@@ -4,9 +4,8 @@ pragma solidity 0.8.20;
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 
-import {ILpETH, IERC20} from "./interfaces/ILpETH.sol";
-import {ILpETHVault} from "./interfaces/ILpETHVault.sol";
-import {IWETH} from "./interfaces/IWETH.sol";
+import {ILpBTC, IERC20} from "./interfaces/ILpBTC.sol";
+import {ILpBTCVault} from "./interfaces/ILpBTCVault.sol";
 import {IMetaAggregationRouterV2} from "./interfaces/IMetaAggregationRouterV2.sol";
 
 /**
@@ -17,23 +16,22 @@ import {IMetaAggregationRouterV2} from "./interfaces/IMetaAggregationRouterV2.so
 contract PrelaunchPoints {
     using Math for uint256;
     using SafeERC20 for IERC20;
-    using SafeERC20 for ILpETH;
+    using SafeERC20 for ILpBTC;
 
     /*//////////////////////////////////////////////////////////////
                                 STORAGE
     //////////////////////////////////////////////////////////////*/
 
-    ILpETH public lpETH;
-    ILpETHVault public lpETHVault;
-    IWETH public immutable WETH;
-    address public constant ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    ILpBTC public lpBTC;
+    ILpBTCVault public lpBTCVault;
+    IERC20 public immutable WBTC;
     address public immutable exchangeProxy;
 
     address public owner;
     address public proposedOwner;
 
     uint256 public totalSupply;
-    uint256 public totalLpETH;
+    uint256 public totalLpBTC;
     mapping(address => uint256) public maxDepositCap;
     mapping(address => bool) public isTokenAllowed;
 
@@ -58,14 +56,14 @@ contract PrelaunchPoints {
 
     event Locked(address indexed user, uint256 amount, address indexed token, bytes32 indexed referral);
     event StakedVault(address indexed user, uint256 amount, uint256 typeIndex);
-    event Converted(uint256 amountETH, uint256 amountlpETH);
+    event Converted(uint256 amounWBTC, uint256 amountlpBTC);
     event Withdrawn(address indexed user, address indexed token, uint256 amount);
     event Claimed(address indexed user, address indexed token, uint256 reward);
     event Recovered(address token, uint256 amount);
     event OwnerProposed(address newOwner);
     event OwnerUpdated(address newOwner);
     event LoopAddressesUpdated(address loopAddress, address vaultAddress);
-    event SwappedTokens(address sellToken, uint256 sellAmount, uint256 buyETHAmount);
+    event SwappedTokens(address sellToken, uint256 sellAmount, uint256 buyWBTCAmount);
     event NewTokenAllowed(address token);
     event DepositMaxCapUpdated(address indexed token, uint256 amount);
     event EmergencyModeSet(bool mode);
@@ -104,21 +102,21 @@ contract PrelaunchPoints {
     //////////////////////////////////////////////////////////////*/
     /**
      * @param _exchangeProxy address of the Kyberswap protocol exchange proxy
-     * @param _wethAddress   address of WETH
+     * @param _wbtcAddress   address of WBTC
      * @param _allowedTokens list of token addresses to allow for locking
      * @param _initialMaxCap list of intial max deposit caps
-     * @dev _initialMaxCap[0] corresponds to WETH, and the rest corresponds to
+     * @dev _initialMaxCap[0] corresponds to WBTC, and the rest corresponds to
      *      _allowedTokens in same order
      */
     constructor(
         address _exchangeProxy,
-        address _wethAddress,
+        address _wbtcAddress,
         address[] memory _allowedTokens,
         uint256[] memory _initialMaxCap
     ) {
         owner = msg.sender;
         exchangeProxy = _exchangeProxy;
-        WETH = IWETH(_wethAddress);
+        WBTC = IERC20(_wbtcAddress);
 
         loopActivation = uint32(block.timestamp + 120 days);
         startClaimDate = 4294967295; // Max uint32 ~ year 2107
@@ -136,30 +134,13 @@ contract PrelaunchPoints {
                 i++;
             }
         }
-        isTokenAllowed[_wethAddress] = true;
-        _setDepositMaxCap(_wethAddress, _initialMaxCap[0]);
+        isTokenAllowed[_wbtcAddress] = true;
+        _setDepositMaxCap(_wbtcAddress, _initialMaxCap[0]);
     }
 
     /*//////////////////////////////////////////////////////////////
                             STAKE FUNCTIONS
     //////////////////////////////////////////////////////////////*/
-
-    /**
-     * @notice Locks ETH
-     * @param _referral  info of the referral. This value will be processed in the backend.
-     */
-    function lockETH(bytes32 _referral) external payable {
-        _processLock(ETH, msg.value, msg.sender, _referral);
-    }
-
-    /**
-     * @notice Locks ETH for a given address
-     * @param _for       address for which ETH is locked
-     * @param _referral  info of the referral. This value will be processed in the backend.
-     */
-    function lockETHFor(address _for, bytes32 _referral) external payable {
-        _processLock(ETH, msg.value, _for, _referral);
-    }
 
     /**
      * @notice Locks a valid token
@@ -168,9 +149,6 @@ contract PrelaunchPoints {
      * @param _referral  info of the referral. This value will be processed in the backend.
      */
     function lock(address _token, uint256 _amount, bytes32 _referral) external {
-        if (_token == ETH) {
-            revert InvalidToken();
-        }
         _processLock(_token, _amount, msg.sender, _referral);
     }
 
@@ -178,13 +156,10 @@ contract PrelaunchPoints {
      * @notice Locks a valid token for a given address
      * @param _token     address of token to lock
      * @param _amount    amount of token to lock
-     * @param _for       address for which ETH is locked
+     * @param _for       address for which token is locked
      * @param _referral  info of the referral. This value will be processed in the backend.
      */
     function lockFor(address _token, uint256 _amount, address _for, bytes32 _referral) external {
-        if (_token == ETH) {
-            revert InvalidToken();
-        }
         _processLock(_token, _amount, _for, _referral);
     }
 
@@ -192,7 +167,7 @@ contract PrelaunchPoints {
      * @dev Generic internal locking function that updates rewards based on
      *      previous balances, then update balances.
      * @param _token       Address of the token to lock
-     * @param _amount      Units of ETH or token to add to the users balance
+     * @param _amount      Units of token to add to the users balance
      * @param _receiver    Address of user who will receive the stake
      * @param _referral    Address of the referral user
      */
@@ -203,27 +178,19 @@ contract PrelaunchPoints {
         if (_amount == 0) {
             revert CannotLockZero();
         }
-        if (_token == ETH) {
-            WETH.deposit{value: _amount}();
-            if (IERC20(WETH).balanceOf(address(this)) > maxDepositCap[address(WETH)]) {
-                revert MaxDepositCapReached(address(WETH));
-            }
-            totalSupply += _amount;
-            balances[_receiver][address(WETH)] += _amount;
-        } else {
-            if (!isTokenAllowed[_token]) {
-                revert TokenNotAllowed(_token);
-            }
-            if (IERC20(_token).balanceOf(address(this)) + _amount > maxDepositCap[_token]) {
-                revert MaxDepositCapReached(_token);
-            }
-            IERC20(_token).safeTransferFrom(msg.sender, address(this), _amount);
-
-            if (_token == address(WETH)) {
-                totalSupply += _amount;
-            }
-            balances[_receiver][_token] += _amount;
+        if (!isTokenAllowed[_token]) {
+            revert TokenNotAllowed(_token);
         }
+        if (IERC20(_token).balanceOf(address(this)) + _amount > maxDepositCap[_token]) {
+            revert MaxDepositCapReached(_token);
+        }
+        IERC20(_token).safeTransferFrom(msg.sender, address(this), _amount);
+
+        if (_token == address(WBTC)) {
+            totalSupply += _amount;
+        }
+        balances[_receiver][_token] += _amount;
+
         emit Locked(_receiver, _amount, _token, _referral);
     }
 
@@ -232,9 +199,9 @@ contract PrelaunchPoints {
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @dev Called by a user to get their vested lpETH
-     * @param _token      Address of the token to convert to lpETH
-     * @param _percentage Proportion in % of tokens to withdraw. NOT useful for ETH
+     * @dev Called by a user to get their vested lpBTC
+     * @param _token      Address of the token to convert to lpBTC
+     * @param _percentage Proportion in % of tokens to withdraw. NOT useful fo WBTC
      * @param _exchange   Exchange identifier where the swap takes place
      * @param _data       Swap data obtained from Kyberswap API
      */
@@ -246,10 +213,10 @@ contract PrelaunchPoints {
     }
 
     /**
-     * @dev Called by a user to get their vested lpETH and stake them in a
+     * @dev Called by a user to get their vested lpBTC and stake them in a
      *      Loop vault for extra rewards
-     * @param _token      Address of the token to convert to lpETH
-     * @param _percentage Proportion in % of tokens to withdraw. NOT useful for ETH
+     * @param _token      Address of the token to convert to lpBTC
+     * @param _percentage Proportion in % of tokens to withdraw. NOT useful for WBTC
      * @param _exchange   Exchange identifier where the swap takes place
      * @param _typeIndex  lock type index determining lock period and rewards multiplier.
      * @param _data       Swap data obtained from Kyberswap API
@@ -262,14 +229,14 @@ contract PrelaunchPoints {
         bytes calldata _data
     ) external onlyAfterDate(startClaimDate) {
         uint256 claimedAmount = _claim(_token, address(this), _percentage, _exchange, _data);
-        lpETH.approve(address(lpETHVault), claimedAmount);
-        lpETHVault.stake(claimedAmount, msg.sender, _typeIndex);
+        lpBTC.approve(address(lpBTCVault), claimedAmount);
+        lpBTCVault.stake(claimedAmount, msg.sender, _typeIndex);
 
         emit StakedVault(msg.sender, claimedAmount, _typeIndex);
     }
 
     /**
-     * @dev Claim logic. If necessary converts token to ETH before depositing into lpETH contract.
+     * @dev Claim logic. If necessary converts token to WBTC before depositing into lpBTC contract.
      */
     function _claim(address _token, address _receiver, uint8 _percentage, Exchange _exchange, bytes calldata _data)
         internal
@@ -282,32 +249,32 @@ contract PrelaunchPoints {
         if (userStake == 0) {
             revert NothingToClaim();
         }
-        if (_token == address(WETH)) {
-            claimedAmount = userStake.mulDiv(totalLpETH, totalSupply);
+        if (_token == address(WBTC)) {
+            claimedAmount = userStake.mulDiv(totalLpBTC, totalSupply);
             balances[msg.sender][_token] = 0;
             if (_receiver != address(this)) {
-                lpETH.safeTransfer(_receiver, claimedAmount);
+                lpBTC.safeTransfer(_receiver, claimedAmount);
             }
         } else {
             uint256 userClaim = userStake * _percentage / 100;
             _validateData(_token, userClaim, _exchange, _data);
             balances[msg.sender][_token] = userStake - userClaim;
-            uint256 balanceWethBefore = WETH.balanceOf(address(this));
+            uint256 balanceWbtcBefore = WBTC.balanceOf(address(this));
 
-            // Swap token to ETH
+            // Swap token to WBTC
             _fillQuote(IERC20(_token), userClaim, _data);
 
-            // Convert swapped ETH to lpETH (1 to 1 conversion)
-            claimedAmount = WETH.balanceOf(address(this)) - balanceWethBefore;
-            WETH.approve(address(lpETH), claimedAmount);
-            lpETH.deposit(claimedAmount, _receiver);
+            // Convert swapped WBTC to lpBTC (1 to 1 conversion)
+            claimedAmount = WBTC.balanceOf(address(this)) - balanceWbtcBefore;
+            WBTC.approve(address(lpBTC), claimedAmount);
+            lpBTC.deposit(claimedAmount, _receiver);
         }
         emit Claimed(msg.sender, _token, claimedAmount);
     }
 
     /**
-     * @dev Called by a staker to withdraw all their ETH or LRT
-     * Note Can only be called before claiming lpETH has started.
+     * @dev Called by a staker to withdraw all their WBTC or LRT
+     * Note Can only be called before claiming lpBTC has started.
      * In emergency mode can be called at any time.
      * @param _token      Address of the token to withdraw
      */
@@ -324,7 +291,7 @@ contract PrelaunchPoints {
         if (lockedAmount == 0) {
             revert CannotWithdrawZero();
         }
-        if (_token == address(WETH)) {
+        if (_token == address(WBTC)) {
             if (block.timestamp >= startClaimDate) {
                 revert UseClaimInstead();
             }
@@ -339,24 +306,24 @@ contract PrelaunchPoints {
                             PROTECTED FUNCTIONS
     //////////////////////////////////////////////////////////////*/
     /**
-     * @dev Called by a owner to convert all the locked ETH to get lpETH
+     * @dev Called by a owner to convert all the locked WBTC to get lpBTC
      */
-    function convertAllETH() external onlyAuthorized onlyBeforeDate(startClaimDate) {
+    function convertAllBTC() external onlyAuthorized onlyBeforeDate(startClaimDate) {
         if (block.timestamp <= TIMELOCK + loopActivation) {
             revert LoopNotActivated();
         }
 
-        // deposits all the WETH to lpETH contract. Receives lpETH back
-        WETH.approve(address(lpETH), totalSupply);
-        lpETH.deposit(totalSupply, address(this));
+        // deposits all the WBTC to lpBTC contract. Receives lpBTC back
+        WBTC.approve(address(lpBTC), totalSupply);
+        lpBTC.deposit(totalSupply, address(this));
 
-        // If there is extra lpETH (sent by external actor) then it is distributed amoung all users
-        totalLpETH = lpETH.balanceOf(address(this));
+        // If there is extra lpBTC (sent by external actor) then it is distributed amoung all WBTC users
+        totalLpBTC = lpBTC.balanceOf(address(this));
 
-        // Claims of lpETH can start immediately after conversion.
+        // Claims of lpBTC can start immediately after conversion.
         startClaimDate = uint32(block.timestamp);
 
-        emit Converted(totalSupply, totalLpETH);
+        emit Converted(totalSupply, totalLpBTC);
     }
 
     /**
@@ -382,18 +349,18 @@ contract PrelaunchPoints {
     }
 
     /**
-     * @notice Sets the lpETH contract address
-     * @param _loopAddress address of the lpETH contract
+     * @notice Sets the lpBTC contract address
+     * @param _loopAddress address of the lpBTC contract
      * @dev Can only be set once before 120 days have passed from deployment.
-     *      After that users can only withdraw ETH.
+     *      After that users can only withdraw WBTC.
      */
     function setLoopAddresses(address _loopAddress, address _vaultAddress)
         external
         onlyAuthorized
         onlyBeforeDate(loopActivation)
     {
-        lpETH = ILpETH(_loopAddress);
-        lpETHVault = ILpETHVault(_vaultAddress);
+        lpBTC = ILpBTC(_loopAddress);
+        lpBTCVault = ILpBTCVault(_vaultAddress);
         loopActivation = uint32(block.timestamp);
 
         emit LoopAddressesUpdated(_loopAddress, _vaultAddress);
@@ -441,7 +408,7 @@ contract PrelaunchPoints {
      * @dev Allows the owner to recover other ERC20s mistakingly sent to this contract
      */
     function recoverERC20(address tokenAddress, uint256 tokenAmount) external onlyAuthorized {
-        if (tokenAddress == address(lpETH) || isTokenAllowed[tokenAddress]) {
+        if (tokenAddress == address(lpBTC) || isTokenAllowed[tokenAddress]) {
             revert NotValidToken();
         }
         IERC20(tokenAddress).safeTransfer(owner, tokenAmount);
@@ -491,7 +458,7 @@ contract PrelaunchPoints {
             revert WrongDataTokens(inputToken, outputToken);
         }
 
-        if (outputToken != address(WETH)) {
+        if (outputToken != address(WBTC)) {
             revert WrongDataTokens(inputToken, outputToken);
         }
 
@@ -553,7 +520,7 @@ contract PrelaunchPoints {
      */
     function _fillQuote(IERC20 _sellToken, uint256 _amount, bytes calldata _swapCallData) internal {
         // Track our balance of the buyToken to determine how much we've bought.
-        uint256 boughtWETHAmount = WETH.balanceOf(address(this));
+        uint256 boughtWbtcAmount = WBTC.balanceOf(address(this));
 
         if (!_sellToken.approve(exchangeProxy, _amount)) {
             revert SellTokenApprovalFailed();
@@ -566,8 +533,8 @@ contract PrelaunchPoints {
         }
 
         // Use our current buyToken balance to determine how much we've bought.
-        boughtWETHAmount = WETH.balanceOf(address(this)) - boughtWETHAmount;
-        emit SwappedTokens(address(_sellToken), _amount, boughtWETHAmount);
+        boughtWbtcAmount = WBTC.balanceOf(address(this)) - boughtWbtcAmount;
+        emit SwappedTokens(address(_sellToken), _amount, boughtWbtcAmount);
     }
 
     /**

@@ -9,8 +9,8 @@ import fetch from "node-fetch"
 import "dotenv/config"
 import {
   IERC20,
-  MockLpETH,
-  MockLpETHVault,
+  MockLpBTC,
+  MockLpBTCVault,
   PrelaunchPoints,
 } from "../typechain"
 import { parseEther } from "ethers"
@@ -19,46 +19,31 @@ const CLIENT_ID = process.env.CLIENT_ID || ""
 
 const tokens = [
   {
-    name: "weETH",
-    address: "0x01f0a31698C4d065659b9bdC21B3610292a1c506",
-    whale: "0xe67e43b831A541c5Fa40DE52aB0aFbE311514E64",
-  },
-  {
-    name: "STONE",
-    address: "0x80137510979822322193fc997d400d5a6c747bf7",
-    whale: "0x34669322bdfCa9e801CA334e7B0E6D69d1F87137",
-  },
-  {
-    name: "pufETH",
-    address: "0xc4d46E8402F476F269c379677C99F18E22Ea030e",
-    whale: "0x9026A229b535ecF0162Dfe48fDeb3c75f7b2A7AE",
-  },
-  {
-    name: "wrsETH",
-    address: "0xa25b25548B4C98B0c7d3d27dcA5D5ca743d68b7F",
-    whale: "0xbC37277871Ab83B83b6E77a8419aC5CBB78d5cf1",
+    name: "swBTC",
+    address: "0x8DB2350D78aBc13f5673A411D4700BCF87864dDE",
+    whale: "0x1bC80a3F1FE46e0014d27F2C312005BA115dCCe4",
   },
 ]
 
 describe("Kyberswap API integration", function () {
-  const WETH = "0x5300000000000000000000000000000000000004"
+  const WBTC = "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599"
   const exchangeProxy = "0x6131B5fae19EA4f9D964eAc0408E4408b66337b5"
 
-  const sellAmount = ethers.parseEther("1")
+  const sellAmount = ethers.parseUnits("1", 8)
   const referral = ethers.encodeBytes32String("")
 
   // Contracts
   let lockToken: IERC20
   let prelaunchPoints: PrelaunchPoints
-  let lpETH: MockLpETH
-  let lpETHVault: MockLpETHVault
+  let lpBTC: MockLpBTC
+  let lpBTCVault: MockLpBTCVault
 
   before(async () => {
-    const LpETH = await hre.ethers.getContractFactory("MockLpETH")
-    lpETH = (await LpETH.deploy()) as unknown as MockLpETH
+    const LpBTC = await hre.ethers.getContractFactory("MockLpBTC")
+    lpBTC = (await LpBTC.deploy()) as unknown as MockLpBTC
 
-    const LpETHVault = await hre.ethers.getContractFactory("MockLpETHVault")
-    lpETHVault = (await LpETHVault.deploy()) as unknown as MockLpETHVault
+    const LpBTCVault = await hre.ethers.getContractFactory("MockLpBTCVault")
+    lpBTCVault = (await LpBTCVault.deploy()) as unknown as MockLpBTCVault
   })
 
   beforeEach(async () => {
@@ -67,7 +52,7 @@ describe("Kyberswap API integration", function () {
     )
     prelaunchPoints = (await PrelaunchPoints.deploy(
       exchangeProxy,
-      WETH,
+      WBTC,
       tokens.map((token) => token.address),
       [parseEther("100")].concat(tokens.map((token) => parseEther("100")))
     )) as unknown as PrelaunchPoints
@@ -106,25 +91,25 @@ describe("Kyberswap API integration", function () {
       expect(lockedBalance).to.be.eq(sellAmount)
 
       // Activate claiming
-      await prelaunchPoints.setLoopAddresses(lpETH, lpETHVault)
+      await prelaunchPoints.setLoopAddresses(lpBTC, lpBTCVault)
       const newTime =
         (await prelaunchPoints.loopActivation()) +
         (await prelaunchPoints.TIMELOCK()) +
         1n
       await time.increaseTo(newTime)
-      await prelaunchPoints.convertAllETH()
+      await prelaunchPoints.convertAllBTC()
 
       // Get Quote from Kyber API
       const headers = { "x-client-id": CLIENT_ID }
       const routesResponse = await fetch(
-        `https://aggregator-api.kyberswap.com/scroll/api/v1/routes?tokenIn=${token.address}&tokenOut=${WETH}&amountIn=${sellAmount}&source=${CLIENT_ID}`,
+        `https://aggregator-api.kyberswap.com/ethereum/api/v1/routes?tokenIn=${token.address}&tokenOut=${WBTC}&amountIn=${sellAmount}&source=${CLIENT_ID}`,
         { headers }
       )
       const route = await routesResponse.json()
       // console.log(route)
 
       const quoteResponse = await fetch(
-        "https://aggregator-api.kyberswap.com/scroll/api/v1/route/build",
+        "https://aggregator-api.kyberswap.com/ethereum/api/v1/route/build",
         {
           method: "POST",
           headers: {
@@ -162,8 +147,8 @@ describe("Kyberswap API integration", function () {
         0
       )
 
-      const balanceLpETHAfter = await lpETH.balanceOf(depositor)
-      expect(balanceLpETHAfter).to.be.gt((sellAmount * 95n) / 100n)
+      const balanceLpBTCAfter = await lpBTC.balanceOf(depositor)
+      expect(balanceLpBTCAfter).to.be.gt((sellAmount * 95n) / 100n)
     })
     it(`it should be able to claimAndStake ${token.name} deposit`, async function () {
       lockToken = (await ethers.getContractAt(
@@ -197,25 +182,25 @@ describe("Kyberswap API integration", function () {
       expect(lockedBalance).to.be.eq(sellAmount)
 
       // Activate claiming
-      await prelaunchPoints.setLoopAddresses(lpETH, lpETHVault)
+      await prelaunchPoints.setLoopAddresses(lpBTC, lpBTCVault)
       const newTime =
         (await prelaunchPoints.loopActivation()) +
         (await prelaunchPoints.TIMELOCK()) +
         1n
       await time.increaseTo(newTime)
-      await prelaunchPoints.convertAllETH()
+      await prelaunchPoints.convertAllBTC()
 
       // Get Quote from Kyber API
       const headers = { "x-client-id": CLIENT_ID }
       const routesResponse = await fetch(
-        `https://aggregator-api.kyberswap.com/scroll/api/v1/routes?tokenIn=${token.address}&tokenOut=${WETH}&amountIn=${sellAmount}&source=${CLIENT_ID}`,
+        `https://aggregator-api.kyberswap.com/ethereum/api/v1/routes?tokenIn=${token.address}&tokenOut=${WBTC}&amountIn=${sellAmount}&source=${CLIENT_ID}`,
         { headers }
       )
       const route = await routesResponse.json()
       // console.log(route)
 
       const quoteResponse = await fetch(
-        "https://aggregator-api.kyberswap.com/scroll/api/v1/route/build",
+        "https://aggregator-api.kyberswap.com/ethereum/api/v1/route/build",
         {
           method: "POST",
           headers: {
@@ -254,8 +239,8 @@ describe("Kyberswap API integration", function () {
         0
       )
 
-      const balanceLpETHAfter = await lpETHVault.balanceOf(depositor)
-      expect(balanceLpETHAfter).to.be.gt((sellAmount * 95n) / 100n)
+      const balanceLpBTCAfter = await lpBTCVault.balanceOf(depositor)
+      expect(balanceLpBTCAfter).to.be.gt((sellAmount * 95n) / 100n)
     })
   })
 })

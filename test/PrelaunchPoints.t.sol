@@ -3,137 +3,52 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
 import "../src/PrelaunchPoints.sol";
-import "../src/interfaces/ILpETH.sol";
+import "../src/interfaces/ILpBTC.sol";
 
 import "../src/mock/AttackContract.sol";
-import "../src/mock/MockLpETH.sol";
-import "../src/mock/MockLpETHVault.sol";
+import "../src/mock/MockLpBTC.sol";
+import "../src/mock/MockLpBTCVault.sol";
 import {ERC20Token} from "../src/mock/MockERC20.sol";
 import {LRToken} from "../src/mock/MockLRT.sol";
-import {MockWETH} from "../src/mock/MockWETH.sol";
+import {MockWBTC} from "../src/mock/MockWBTC.sol";
 
 import "forge-std/console.sol";
 
 contract PrelaunchPointsTest is Test {
     PrelaunchPoints public prelaunchPoints;
     AttackContract public attackContract;
-    ILpETH public lpETH;
-    MockWETH public weth;
+    ILpBTC public lpBTC;
+    MockWBTC public wbtc;
     LRToken public lrt;
-    ILpETHVault public lpETHVault;
+    ILpBTCVault public lpBTCVault;
     uint256 public constant INITIAL_SUPPLY = 1000 ether;
     bytes32 referral = bytes32(uint256(1));
 
     address constant EXCHANGE_PROXY = 0x6131B5fae19EA4f9D964eAc0408E4408b66337b5;
-    address public constant ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
-    address public WETH; //= 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address public WBTC; //
     address[] public allowedTokens;
     uint256[] public initialMaxBalance;
 
     function setUp() public {
         lrt = new LRToken();
         lrt.mint(address(this), INITIAL_SUPPLY);
-        weth = new MockWETH();
-        WETH = address(weth);
+        wbtc = new MockWBTC();
+        WBTC = address(wbtc);
         vm.deal(address(this), INITIAL_SUPPLY);
-        weth.deposit{value: INITIAL_SUPPLY}();
+        wbtc.mint(address(this), INITIAL_SUPPLY);
 
         address[] storage allowedTokens_ = allowedTokens;
         uint256[] storage initialMaxBalance_ = initialMaxBalance;
         allowedTokens_.push(address(lrt));
-        initialMaxBalance_.push(UINT256_MAX); // WETH
+        initialMaxBalance_.push(UINT256_MAX); // WBTC
         initialMaxBalance_.push(UINT256_MAX); // LRT
 
-        prelaunchPoints = new PrelaunchPoints(EXCHANGE_PROXY, WETH, allowedTokens_, initialMaxBalance_);
+        prelaunchPoints = new PrelaunchPoints(EXCHANGE_PROXY, WBTC, allowedTokens_, initialMaxBalance_);
 
-        lpETH = new MockLpETH();
-        lpETHVault = new MockLpETHVault();
+        lpBTC = new MockLpBTC();
+        lpBTCVault = new MockLpBTCVault();
 
         attackContract = new AttackContract(prelaunchPoints);
-    }
-
-    /// ======= Tests for lockETH ======= ///
-    function testLockETH(uint256 lockAmount) public {
-        lockAmount = bound(lockAmount, 1, INITIAL_SUPPLY * 1e10);
-        vm.deal(address(this), lockAmount);
-        prelaunchPoints.lockETH{value: lockAmount}(referral);
-
-        assertEq(prelaunchPoints.balances(address(this), WETH), lockAmount);
-        assertEq(prelaunchPoints.totalSupply(), lockAmount);
-    }
-
-    function testLockETHFailActivation(uint256 lockAmount) public {
-        lockAmount = bound(lockAmount, 1, INITIAL_SUPPLY * 1e10);
-        // Should revert after starting the claim
-        prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
-        vm.warp(prelaunchPoints.loopActivation() + prelaunchPoints.TIMELOCK() + 1);
-        prelaunchPoints.convertAllETH();
-        vm.warp(prelaunchPoints.startClaimDate() + 1);
-
-        vm.deal(address(this), lockAmount);
-        vm.expectRevert(PrelaunchPoints.NoLongerPossible.selector);
-        prelaunchPoints.lockETH{value: lockAmount}(referral);
-    }
-
-    function testLockETHFailZero() public {
-        vm.expectRevert(PrelaunchPoints.CannotLockZero.selector);
-        prelaunchPoints.lockETH{value: 0}(referral);
-    }
-
-    function testLockETHFailMaxCap(uint256 lockAmount) public {
-        lockAmount = bound(lockAmount, 1, INITIAL_SUPPLY * 1e10);
-
-        _setLowerCaps(WETH, lockAmount - 1);
-
-        // Try to lock ETH
-        vm.deal(address(this), lockAmount);
-        vm.expectRevert(abi.encodeWithSelector(PrelaunchPoints.MaxDepositCapReached.selector, WETH));
-        prelaunchPoints.lockETH{value: lockAmount}(referral);
-    }
-
-    /// ======= Tests for lockETHFor ======= ///
-    function testLockETHFor(uint256 lockAmount) public {
-        lockAmount = bound(lockAmount, 1, INITIAL_SUPPLY * 1e10);
-        address recipient = address(0x1234);
-
-        vm.deal(address(this), lockAmount);
-        prelaunchPoints.lockETHFor{value: lockAmount}(recipient, referral);
-
-        assertEq(prelaunchPoints.balances(recipient, WETH), lockAmount);
-        assertEq(prelaunchPoints.totalSupply(), lockAmount);
-    }
-
-    function testLockETHForFailActivation(uint256 lockAmount) public {
-        lockAmount = bound(lockAmount, 1, INITIAL_SUPPLY * 1e10);
-        address recipient = address(0x1234);
-        // Should revert after starting the claim
-        prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
-        vm.warp(prelaunchPoints.loopActivation() + prelaunchPoints.TIMELOCK() + 1);
-        prelaunchPoints.convertAllETH();
-        vm.warp(prelaunchPoints.startClaimDate() + 1);
-
-        vm.deal(address(this), lockAmount);
-        vm.expectRevert(PrelaunchPoints.NoLongerPossible.selector);
-        prelaunchPoints.lockETHFor{value: lockAmount}(recipient, referral);
-    }
-
-    function testLockETHForFailZero() public {
-        address recipient = address(0x1234);
-
-        vm.expectRevert(PrelaunchPoints.CannotLockZero.selector);
-        prelaunchPoints.lockETHFor{value: 0}(recipient, referral);
-    }
-
-    function testLockETHForFailMaxCap(uint256 lockAmount) public {
-        lockAmount = bound(lockAmount, 1, INITIAL_SUPPLY * 1e10);
-        address recipient = address(0x1234);
-
-        _setLowerCaps(WETH, lockAmount - 1);
-
-        // Try to lock ETH
-        vm.deal(address(this), lockAmount);
-        vm.expectRevert(abi.encodeWithSelector(PrelaunchPoints.MaxDepositCapReached.selector, WETH));
-        prelaunchPoints.lockETHFor{value: lockAmount}(recipient, referral);
     }
 
     /// ======= Tests for lock ======= ///
@@ -145,38 +60,40 @@ contract PrelaunchPointsTest is Test {
         assertEq(prelaunchPoints.balances(address(this), address(lrt)), lockAmount);
     }
 
-    function testLockWETH(uint256 lockAmount) public {
+    function testLockWBTC(uint256 lockAmount) public {
         lockAmount = bound(lockAmount, 1, INITIAL_SUPPLY);
-        weth.approve(address(prelaunchPoints), lockAmount);
-        prelaunchPoints.lock(WETH, lockAmount, referral);
+        wbtc.mint(address(this), lockAmount);
+        wbtc.approve(address(prelaunchPoints), lockAmount);
+        prelaunchPoints.lock(WBTC, lockAmount, referral);
 
-        assertEq(prelaunchPoints.balances(address(this), WETH), lockAmount);
+        assertEq(prelaunchPoints.balances(address(this), WBTC), lockAmount);
     }
 
     function testLockFailActivation(uint256 lockAmount) public {
         lockAmount = bound(lockAmount, 1, INITIAL_SUPPLY);
         lrt.approve(address(prelaunchPoints), lockAmount);
         // Should revert after starting the claim
-        prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
+        prelaunchPoints.setLoopAddresses(address(lpBTC), address(lpBTCVault));
         vm.warp(prelaunchPoints.loopActivation() + prelaunchPoints.TIMELOCK() + 1);
-        prelaunchPoints.convertAllETH();
+        prelaunchPoints.convertAllBTC();
         vm.warp(prelaunchPoints.startClaimDate() + 1);
 
         vm.expectRevert(PrelaunchPoints.NoLongerPossible.selector);
         prelaunchPoints.lock(address(lrt), lockAmount, referral);
     }
 
-    function testLockWETHFailActivation(uint256 lockAmount) public {
+    function testLockWBTCFailActivation(uint256 lockAmount) public {
         lockAmount = bound(lockAmount, 1, INITIAL_SUPPLY);
-        weth.approve(address(prelaunchPoints), lockAmount);
+        wbtc.mint(address(this), lockAmount);
+        wbtc.approve(address(prelaunchPoints), lockAmount);
         // Should revert after starting the claim
-        prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
+        prelaunchPoints.setLoopAddresses(address(lpBTC), address(lpBTCVault));
         vm.warp(prelaunchPoints.loopActivation() + prelaunchPoints.TIMELOCK() + 1);
-        prelaunchPoints.convertAllETH();
+        prelaunchPoints.convertAllBTC();
         vm.warp(prelaunchPoints.startClaimDate() + 1);
 
         vm.expectRevert(PrelaunchPoints.NoLongerPossible.selector);
-        prelaunchPoints.lock(WETH, lockAmount, referral);
+        prelaunchPoints.lock(WBTC, lockAmount, referral);
     }
 
     function testLockFailZero() public {
@@ -184,14 +101,14 @@ contract PrelaunchPointsTest is Test {
         prelaunchPoints.lock(address(lrt), 0, referral);
 
         vm.expectRevert(PrelaunchPoints.CannotLockZero.selector);
-        prelaunchPoints.lock(WETH, 0, referral);
+        prelaunchPoints.lock(WBTC, 0, referral);
     }
 
     function testLockFailTokenNotAllowed(uint256 lockAmount) public {
         lockAmount = bound(lockAmount, 1, INITIAL_SUPPLY);
         lrt.approve(address(prelaunchPoints), lockAmount);
-        vm.expectRevert(abi.encodeWithSelector(PrelaunchPoints.TokenNotAllowed.selector, address(lpETH)));
-        prelaunchPoints.lock(address(lpETH), lockAmount, referral);
+        vm.expectRevert(abi.encodeWithSelector(PrelaunchPoints.TokenNotAllowed.selector, address(lpBTC)));
+        prelaunchPoints.lock(address(lpBTC), lockAmount, referral);
     }
 
     function testLockFailMaxCap(uint256 lockAmount) public {
@@ -205,15 +122,16 @@ contract PrelaunchPointsTest is Test {
         prelaunchPoints.lock(address(lrt), lockAmount, referral);
     }
 
-    function testLockWETHFailMaxCap(uint256 lockAmount) public {
+    function testLockWBTCFailMaxCap(uint256 lockAmount) public {
         lockAmount = bound(lockAmount, 1, INITIAL_SUPPLY * 1e10);
 
-        _setLowerCaps(WETH, lockAmount - 1);
+        _setLowerCaps(WBTC, lockAmount - 1);
 
-        // Try to lock WETH
-        weth.approve(address(prelaunchPoints), lockAmount);
-        vm.expectRevert(abi.encodeWithSelector(PrelaunchPoints.MaxDepositCapReached.selector, WETH));
-        prelaunchPoints.lock(WETH, lockAmount, referral);
+        // Try to lock WBTC
+        wbtc.mint(address(this), lockAmount);
+        wbtc.approve(address(prelaunchPoints), lockAmount);
+        vm.expectRevert(abi.encodeWithSelector(PrelaunchPoints.MaxDepositCapReached.selector, WBTC));
+        prelaunchPoints.lock(WBTC, lockAmount, referral);
     }
 
     /// ======= Tests for lockFor ======= ///
@@ -227,23 +145,24 @@ contract PrelaunchPointsTest is Test {
         assertEq(prelaunchPoints.balances(recipient, address(lrt)), lockAmount);
     }
 
-    function testLockForWETH(uint256 lockAmount) public {
+    function testLockForWBTC(uint256 lockAmount) public {
         lockAmount = bound(lockAmount, 1, INITIAL_SUPPLY);
-        weth.approve(address(prelaunchPoints), lockAmount);
+        wbtc.mint(address(this), lockAmount);
+        wbtc.approve(address(prelaunchPoints), lockAmount);
         address recipient = address(0x1234);
 
-        prelaunchPoints.lockFor(WETH, lockAmount, recipient, referral);
+        prelaunchPoints.lockFor(WBTC, lockAmount, recipient, referral);
 
-        assertEq(prelaunchPoints.balances(recipient, WETH), lockAmount);
+        assertEq(prelaunchPoints.balances(recipient, WBTC), lockAmount);
     }
 
     function testLockForFailActivation(uint256 lockAmount) public {
         lockAmount = bound(lockAmount, 1, INITIAL_SUPPLY);
         address recipient = address(0x1234);
         // Should revert after starting the claim
-        prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
+        prelaunchPoints.setLoopAddresses(address(lpBTC), address(lpBTCVault));
         vm.warp(prelaunchPoints.loopActivation() + prelaunchPoints.TIMELOCK() + 1);
-        prelaunchPoints.convertAllETH();
+        prelaunchPoints.convertAllBTC();
         vm.warp(prelaunchPoints.startClaimDate() + 1);
 
         lrt.approve(address(prelaunchPoints), lockAmount);
@@ -251,18 +170,19 @@ contract PrelaunchPointsTest is Test {
         prelaunchPoints.lockFor(address(lrt), lockAmount, recipient, referral);
     }
 
-    function testLockForWETHFailActivation(uint256 lockAmount) public {
+    function testLockForWBTCFailActivation(uint256 lockAmount) public {
         lockAmount = bound(lockAmount, 1, INITIAL_SUPPLY);
         address recipient = address(0x1234);
         // Should revert after starting the claim
-        prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
+        prelaunchPoints.setLoopAddresses(address(lpBTC), address(lpBTCVault));
         vm.warp(prelaunchPoints.loopActivation() + prelaunchPoints.TIMELOCK() + 1);
-        prelaunchPoints.convertAllETH();
+        prelaunchPoints.convertAllBTC();
         vm.warp(prelaunchPoints.startClaimDate() + 1);
 
-        weth.approve(address(prelaunchPoints), lockAmount);
+        wbtc.mint(address(this), lockAmount);
+        wbtc.approve(address(prelaunchPoints), lockAmount);
         vm.expectRevert(PrelaunchPoints.NoLongerPossible.selector);
-        prelaunchPoints.lockFor(WETH, lockAmount, recipient, referral);
+        prelaunchPoints.lockFor(WBTC, lockAmount, recipient, referral);
     }
 
     function testLockForFailZero() public {
@@ -277,8 +197,8 @@ contract PrelaunchPointsTest is Test {
         lrt.approve(address(prelaunchPoints), lockAmount);
         address recipient = address(0x1234);
 
-        vm.expectRevert(abi.encodeWithSelector(PrelaunchPoints.TokenNotAllowed.selector, address(lpETH)));
-        prelaunchPoints.lockFor(address(lpETH), lockAmount, recipient, referral);
+        vm.expectRevert(abi.encodeWithSelector(PrelaunchPoints.TokenNotAllowed.selector, address(lpBTC)));
+        prelaunchPoints.lockFor(address(lpBTC), lockAmount, recipient, referral);
     }
 
     function testLockForFailMaxCap(uint256 lockAmount) public {
@@ -293,65 +213,69 @@ contract PrelaunchPointsTest is Test {
         prelaunchPoints.lockFor(address(lrt), lockAmount, recipient, referral);
     }
 
-    function testLockForWETHFailMaxCap(uint256 lockAmount) public {
+    function testLockForWBTCFailMaxCap(uint256 lockAmount) public {
         lockAmount = bound(lockAmount, 1, INITIAL_SUPPLY * 1e10);
         address recipient = address(0x1234);
 
-        _setLowerCaps(WETH, lockAmount - 1);
+        _setLowerCaps(WBTC, lockAmount - 1);
 
-        // Try to lock WETH
-        weth.approve(address(prelaunchPoints), lockAmount);
-        vm.expectRevert(abi.encodeWithSelector(PrelaunchPoints.MaxDepositCapReached.selector, WETH));
-        prelaunchPoints.lockFor(WETH, lockAmount, recipient, referral);
+        // Try to lock WBTC
+        wbtc.mint(address(this), lockAmount);
+        wbtc.approve(address(prelaunchPoints), lockAmount);
+        vm.expectRevert(abi.encodeWithSelector(PrelaunchPoints.MaxDepositCapReached.selector, WBTC));
+        prelaunchPoints.lockFor(WBTC, lockAmount, recipient, referral);
     }
 
-    /// ======= Tests for convertAllETH ======= ///
-    function testConvertAllETH(uint256 lockAmount) public {
+    /// ======= Tests for convertAllBTC ======= ///
+    function testConvertAllBTC(uint256 lockAmount) public {
         lockAmount = bound(lockAmount, 1, 1e36);
-        vm.deal(address(this), lockAmount);
-        prelaunchPoints.lockETH{value: lockAmount}(referral);
+        wbtc.mint(address(this), lockAmount);
+        wbtc.approve(address(prelaunchPoints), lockAmount);
+        prelaunchPoints.lock(WBTC, lockAmount, referral);
 
-        prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
+        prelaunchPoints.setLoopAddresses(address(lpBTC), address(lpBTCVault));
 
         vm.warp(prelaunchPoints.loopActivation() + prelaunchPoints.TIMELOCK() + 1);
-        prelaunchPoints.convertAllETH();
+        prelaunchPoints.convertAllBTC();
 
-        assertEq(prelaunchPoints.totalLpETH(), lockAmount);
-        assertEq(lpETH.balanceOf(address(prelaunchPoints)), lockAmount);
+        assertEq(prelaunchPoints.totalLpBTC(), lockAmount);
+        assertEq(lpBTC.balanceOf(address(prelaunchPoints)), lockAmount);
         assertEq(prelaunchPoints.startClaimDate(), block.timestamp);
     }
 
     function testConvertAllFailActivation(uint256 lockAmount) public {
         lockAmount = bound(lockAmount, 1, INITIAL_SUPPLY * 1e10);
-        vm.deal(address(this), lockAmount);
-        prelaunchPoints.lockETH{value: lockAmount}(referral);
+        wbtc.mint(address(this), lockAmount);
+        wbtc.approve(address(prelaunchPoints), lockAmount);
+        prelaunchPoints.lock(WBTC, lockAmount, referral);
 
-        prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
+        prelaunchPoints.setLoopAddresses(address(lpBTC), address(lpBTCVault));
 
         vm.expectRevert(PrelaunchPoints.LoopNotActivated.selector);
-        prelaunchPoints.convertAllETH();
+        prelaunchPoints.convertAllBTC();
     }
 
-    /// ======= Tests for claim ETH======= ///
+    /// ======= Tests for claim BTC======= ///
     bytes emptydata = new bytes(1);
 
     function testClaim(uint256 lockAmount) public {
         lockAmount = bound(lockAmount, 1, 1e36);
-        vm.deal(address(this), lockAmount);
-        prelaunchPoints.lockETH{value: lockAmount}(referral);
+        wbtc.mint(address(this), lockAmount);
+        wbtc.approve(address(prelaunchPoints), lockAmount);
+        prelaunchPoints.lock(WBTC, lockAmount, referral);
 
-        // Set Loop Contracts and Convert to lpETH
-        prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
+        // Set Loop Contracts and Convert to lpBTC
+        prelaunchPoints.setLoopAddresses(address(lpBTC), address(lpBTCVault));
         vm.warp(prelaunchPoints.loopActivation() + prelaunchPoints.TIMELOCK() + 1);
-        prelaunchPoints.convertAllETH();
+        prelaunchPoints.convertAllBTC();
 
         vm.warp(prelaunchPoints.startClaimDate() + 1);
-        prelaunchPoints.claim(WETH, 100, PrelaunchPoints.Exchange.Swap, emptydata);
+        prelaunchPoints.claim(WBTC, 100, PrelaunchPoints.Exchange.Swap, emptydata);
 
-        uint256 balanceLpETH = prelaunchPoints.totalLpETH() * lockAmount / prelaunchPoints.totalSupply();
+        uint256 balanceLpBTC = prelaunchPoints.totalLpBTC() * lockAmount / prelaunchPoints.totalSupply();
 
-        assertEq(prelaunchPoints.balances(address(this), WETH), 0);
-        assertEq(lpETH.balanceOf(address(this)), balanceLpETH);
+        assertEq(prelaunchPoints.balances(address(this), WBTC), 0);
+        assertEq(lpBTC.balanceOf(address(this)), balanceLpBTC);
     }
 
     function testClaimSeveralUsers(uint256 lockAmount, uint256 lockAmount1, uint256 lockAmount2) public {
@@ -362,86 +286,96 @@ contract PrelaunchPointsTest is Test {
         address user1 = vm.addr(1);
         address user2 = vm.addr(2);
 
-        vm.deal(address(this), lockAmount);
-        vm.deal(user1, lockAmount1);
-        vm.deal(user2, lockAmount2);
+        wbtc.mint(address(this), lockAmount);
+        wbtc.mint(user1, lockAmount1);
+        wbtc.mint(user2, lockAmount2);
 
-        prelaunchPoints.lockETH{value: lockAmount}(referral);
-        vm.prank(user1);
-        prelaunchPoints.lockETH{value: lockAmount1}(referral);
-        vm.prank(user2);
-        prelaunchPoints.lockETH{value: lockAmount2}(referral);
+        wbtc.approve(address(prelaunchPoints), lockAmount);
+        prelaunchPoints.lock(WBTC, lockAmount, referral);
+        
+        vm.startPrank(user1);
+        wbtc.approve(address(prelaunchPoints), lockAmount1);
+        prelaunchPoints.lock(WBTC, lockAmount1, referral);
+        vm.stopPrank();
 
-        // Set Loop Contracts and Convert to lpETH
-        prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
+        vm.startPrank(user2);
+        wbtc.approve(address(prelaunchPoints), lockAmount2);
+        prelaunchPoints.lock(WBTC, lockAmount2, referral);
+        vm.stopPrank();
+
+        // Set Loop Contracts and Convert to lpBTC
+        prelaunchPoints.setLoopAddresses(address(lpBTC), address(lpBTCVault));
         vm.warp(prelaunchPoints.loopActivation() + prelaunchPoints.TIMELOCK() + 1);
-        prelaunchPoints.convertAllETH();
+        prelaunchPoints.convertAllBTC();
 
         vm.warp(prelaunchPoints.startClaimDate() + 1);
-        prelaunchPoints.claim(WETH, 100, PrelaunchPoints.Exchange.Swap, emptydata);
+        prelaunchPoints.claim(WBTC, 100, PrelaunchPoints.Exchange.Swap, emptydata);
 
-        uint256 balanceLpETH = prelaunchPoints.totalLpETH() * lockAmount / prelaunchPoints.totalSupply();
+        uint256 balanceLpBTC = prelaunchPoints.totalLpBTC() * lockAmount / prelaunchPoints.totalSupply();
 
-        assertEq(prelaunchPoints.balances(address(this), WETH), 0);
-        assertEq(lpETH.balanceOf(address(this)), balanceLpETH);
+        assertEq(prelaunchPoints.balances(address(this), WBTC), 0);
+        assertEq(lpBTC.balanceOf(address(this)), balanceLpBTC);
 
         vm.prank(user1);
-        prelaunchPoints.claim(WETH, 100, PrelaunchPoints.Exchange.Swap, emptydata);
-        uint256 balanceLpETH1 = prelaunchPoints.totalLpETH() * lockAmount1 / prelaunchPoints.totalSupply();
+        prelaunchPoints.claim(WBTC, 100, PrelaunchPoints.Exchange.Swap, emptydata);
+        uint256 balanceLpBTC1 = prelaunchPoints.totalLpBTC() * lockAmount1 / prelaunchPoints.totalSupply();
 
-        assertEq(prelaunchPoints.balances(user1, WETH), 0);
-        assertEq(lpETH.balanceOf(user1), balanceLpETH1);
+        assertEq(prelaunchPoints.balances(user1, WBTC), 0);
+        assertEq(lpBTC.balanceOf(user1), balanceLpBTC1);
     }
 
     function testClaimFailTwice(uint256 lockAmount) public {
         lockAmount = bound(lockAmount, 1, 1e36);
-        vm.deal(address(this), lockAmount);
-        prelaunchPoints.lockETH{value: lockAmount}(referral);
+        wbtc.mint(address(this), lockAmount);
+        wbtc.approve(address(prelaunchPoints), lockAmount);
+        prelaunchPoints.lock(WBTC, lockAmount, referral);
 
-        // Set Loop Contracts and Convert to lpETH
-        prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
+        // Set Loop Contracts and Convert to lpBTC
+        prelaunchPoints.setLoopAddresses(address(lpBTC), address(lpBTCVault));
         vm.warp(prelaunchPoints.loopActivation() + prelaunchPoints.TIMELOCK() + 1);
-        prelaunchPoints.convertAllETH();
+        prelaunchPoints.convertAllBTC();
 
         vm.warp(prelaunchPoints.startClaimDate() + 1);
-        prelaunchPoints.claim(WETH, 100, PrelaunchPoints.Exchange.Swap, emptydata);
+        prelaunchPoints.claim(WBTC, 100, PrelaunchPoints.Exchange.Swap, emptydata);
 
         vm.expectRevert(PrelaunchPoints.NothingToClaim.selector);
-        prelaunchPoints.claim(WETH, 100, PrelaunchPoints.Exchange.Swap, emptydata);
+        prelaunchPoints.claim(WBTC, 100, PrelaunchPoints.Exchange.Swap, emptydata);
     }
 
     function testClaimFailBeforeConvert(uint256 lockAmount) public {
         lockAmount = bound(lockAmount, 1, 1e36);
-        vm.deal(address(this), lockAmount);
-        prelaunchPoints.lockETH{value: lockAmount}(referral);
+        wbtc.mint(address(this), lockAmount);
+        wbtc.approve(address(prelaunchPoints), lockAmount);
+        prelaunchPoints.lock(WBTC, lockAmount, referral);
 
-        // Set Loop Contracts and Convert to lpETH
-        prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
+        // Set Loop Contracts and Convert to lpBTC
+        prelaunchPoints.setLoopAddresses(address(lpBTC), address(lpBTCVault));
         vm.warp(prelaunchPoints.loopActivation() + prelaunchPoints.TIMELOCK() + 1);
 
         vm.expectRevert(PrelaunchPoints.CurrentlyNotPossible.selector);
-        prelaunchPoints.claim(WETH, 100, PrelaunchPoints.Exchange.Swap, emptydata);
+        prelaunchPoints.claim(WBTC, 100, PrelaunchPoints.Exchange.Swap, emptydata);
     }
 
     /// ======= Tests for claimAndStake ======= ///
     function testClaimAndStake(uint256 lockAmount) public {
         lockAmount = bound(lockAmount, 1, 1e36);
-        vm.deal(address(this), lockAmount);
-        prelaunchPoints.lockETH{value: lockAmount}(referral);
+        wbtc.mint(address(this), lockAmount);
+        wbtc.approve(address(prelaunchPoints), lockAmount);
+        prelaunchPoints.lock(WBTC, lockAmount, referral);
 
-        // Set Loop Contracts and Convert to lpETH
-        prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
+        // Set Loop Contracts and Convert to lpBTC
+        prelaunchPoints.setLoopAddresses(address(lpBTC), address(lpBTCVault));
         vm.warp(prelaunchPoints.loopActivation() + prelaunchPoints.TIMELOCK() + 1);
-        prelaunchPoints.convertAllETH();
+        prelaunchPoints.convertAllBTC();
 
         vm.warp(prelaunchPoints.startClaimDate() + 1);
-        prelaunchPoints.claimAndStake(WETH, 100, PrelaunchPoints.Exchange.Swap, 0, emptydata);
+        prelaunchPoints.claimAndStake(WBTC, 100, PrelaunchPoints.Exchange.Swap, 0, emptydata);
 
-        uint256 balanceLpETH = prelaunchPoints.totalLpETH() * lockAmount / prelaunchPoints.totalSupply();
+        uint256 balanceLpBTC = prelaunchPoints.totalLpBTC() * lockAmount / prelaunchPoints.totalSupply();
 
-        assertEq(prelaunchPoints.balances(address(this), WETH), 0);
-        assertEq(lpETH.balanceOf(address(this)), 0);
-        assertEq(lpETHVault.balanceOf(address(this)), balanceLpETH);
+        assertEq(prelaunchPoints.balances(address(this), WBTC), 0);
+        assertEq(lpBTC.balanceOf(address(this)), 0);
+        assertEq(lpBTCVault.balanceOf(address(this)), balanceLpBTC);
     }
 
     function testClaimAndStakeSeveralUsers(uint256 lockAmount, uint256 lockAmount1, uint256 lockAmount2) public {
@@ -452,137 +386,136 @@ contract PrelaunchPointsTest is Test {
         address user1 = vm.addr(1);
         address user2 = vm.addr(2);
 
-        vm.deal(address(this), lockAmount);
-        vm.deal(user1, lockAmount1);
-        vm.deal(user2, lockAmount2);
+        wbtc.mint(address(this), lockAmount);
+        wbtc.mint(user1, lockAmount1);
+        wbtc.mint(user2, lockAmount2);
 
-        prelaunchPoints.lockETH{value: lockAmount}(referral);
-        vm.prank(user1);
-        prelaunchPoints.lockETH{value: lockAmount1}(referral);
-        vm.prank(user2);
-        prelaunchPoints.lockETH{value: lockAmount2}(referral);
+        wbtc.approve(address(prelaunchPoints), lockAmount);
+        prelaunchPoints.lock(WBTC, lockAmount, referral);
 
-        // Set Loop Contracts and Convert to lpETH
-        prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
+        vm.startPrank(user1);
+        wbtc.approve(address(prelaunchPoints), lockAmount1);
+        prelaunchPoints.lock(WBTC, lockAmount1, referral);
+        vm.stopPrank();
+
+        vm.startPrank(user2);
+        wbtc.approve(address(prelaunchPoints), lockAmount2);
+        prelaunchPoints.lock(WBTC, lockAmount2, referral);
+        vm.stopPrank();
+
+        // Set Loop Contracts and Convert to lpBTC
+        prelaunchPoints.setLoopAddresses(address(lpBTC), address(lpBTCVault));
         vm.warp(prelaunchPoints.loopActivation() + prelaunchPoints.TIMELOCK() + 1);
-        prelaunchPoints.convertAllETH();
+        prelaunchPoints.convertAllBTC();
 
         vm.warp(prelaunchPoints.startClaimDate() + 1);
-        prelaunchPoints.claimAndStake(WETH, 100, PrelaunchPoints.Exchange.Swap, 0, emptydata);
+        prelaunchPoints.claimAndStake(WBTC, 100, PrelaunchPoints.Exchange.Swap, 0, emptydata);
 
-        uint256 balanceLpETH = prelaunchPoints.totalLpETH() * lockAmount / prelaunchPoints.totalSupply();
+        uint256 balanceLpBTC = prelaunchPoints.totalLpBTC() * lockAmount / prelaunchPoints.totalSupply();
 
-        assertEq(prelaunchPoints.balances(address(this), WETH), 0);
-        assertEq(lpETH.balanceOf(address(this)), 0);
-        assertEq(lpETHVault.balanceOf(address(this)), balanceLpETH);
+        assertEq(prelaunchPoints.balances(address(this), WBTC), 0);
+        assertEq(lpBTC.balanceOf(address(this)), 0);
+        assertEq(lpBTCVault.balanceOf(address(this)), balanceLpBTC);
 
         vm.prank(user1);
-        prelaunchPoints.claimAndStake(WETH, 100, PrelaunchPoints.Exchange.Swap, 0, emptydata);
-        uint256 balanceLpETH1 = prelaunchPoints.totalLpETH() * lockAmount1 / prelaunchPoints.totalSupply();
+        prelaunchPoints.claimAndStake(WBTC, 100, PrelaunchPoints.Exchange.Swap, 0, emptydata);
+        uint256 balanceLpBTC1 = prelaunchPoints.totalLpBTC() * lockAmount1 / prelaunchPoints.totalSupply();
 
-        assertEq(prelaunchPoints.balances(user1, WETH), 0);
-        assertEq(lpETH.balanceOf(user1), 0);
-        assertEq(lpETHVault.balanceOf(user1), balanceLpETH1);
+        assertEq(prelaunchPoints.balances(user1, WBTC), 0);
+        assertEq(lpBTC.balanceOf(user1), 0);
+        assertEq(lpBTCVault.balanceOf(user1), balanceLpBTC1);
     }
 
     function testClaimAndStakeFailTwice(uint256 lockAmount) public {
         lockAmount = bound(lockAmount, 1, 1e36);
-        vm.deal(address(this), lockAmount);
-        prelaunchPoints.lockETH{value: lockAmount}(referral);
+        wbtc.mint(address(this), lockAmount);
+        wbtc.approve(address(prelaunchPoints), lockAmount);
+        prelaunchPoints.lock(WBTC, lockAmount, referral);
 
-        // Set Loop Contracts and Convert to lpETH
-        prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
+        // Set Loop Contracts and Convert to lpBTC
+        prelaunchPoints.setLoopAddresses(address(lpBTC), address(lpBTCVault));
         vm.warp(prelaunchPoints.loopActivation() + prelaunchPoints.TIMELOCK() + 1);
-        prelaunchPoints.convertAllETH();
+        prelaunchPoints.convertAllBTC();
 
         vm.warp(prelaunchPoints.startClaimDate() + 1);
-        prelaunchPoints.claim(WETH, 100, PrelaunchPoints.Exchange.Swap, emptydata);
+        prelaunchPoints.claim(WBTC, 100, PrelaunchPoints.Exchange.Swap, emptydata);
 
         vm.expectRevert(PrelaunchPoints.NothingToClaim.selector);
-        prelaunchPoints.claimAndStake(WETH, 100, PrelaunchPoints.Exchange.Swap, 0, emptydata);
+        prelaunchPoints.claimAndStake(WBTC, 100, PrelaunchPoints.Exchange.Swap, 0, emptydata);
     }
 
     function testClaimAndStakeFailBeforeConvert(uint256 lockAmount) public {
         lockAmount = bound(lockAmount, 1, 1e36);
-        vm.deal(address(this), lockAmount);
-        prelaunchPoints.lockETH{value: lockAmount}(referral);
+        wbtc.mint(address(this), lockAmount);
+        wbtc.approve(address(prelaunchPoints), lockAmount);
+        prelaunchPoints.lock(WBTC, lockAmount, referral);
 
-        // Set Loop Contracts and Convert to lpETH
-        prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
+        // Set Loop Contracts and Convert to lpBTC
+        prelaunchPoints.setLoopAddresses(address(lpBTC), address(lpBTCVault));
         vm.warp(prelaunchPoints.loopActivation() + prelaunchPoints.TIMELOCK() + 1);
 
         vm.expectRevert(PrelaunchPoints.CurrentlyNotPossible.selector);
-        prelaunchPoints.claimAndStake(WETH, 100, PrelaunchPoints.Exchange.Swap, 0, emptydata);
+        prelaunchPoints.claimAndStake(WBTC, 100, PrelaunchPoints.Exchange.Swap, 0, emptydata);
     }
 
-    /// ======= Tests for withdraw ETH ======= ///
+    /// ======= Tests for withdraw BTC ======= ///
     receive() external payable {}
 
-    function testWithdrawETH(uint256 lockAmount) public {
-        vm.assume(lockAmount > 0);
-        vm.deal(address(this), lockAmount);
-        // prelaunchPoints.lockETH{value: lockAmount}(referral);
+    // function testWithdrawBTC(uint256 lockAmount) public {
+    //     lockAmount = bound(lockAmount, 1, 1e36);
+    //     wbtc.mint(address(this), lockAmount);
+    //     // prelaunchPoints.lockBTC{value: lockAmount}(referral);
 
-        // prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
-        // vm.warp(prelaunchPoints.loopActivation() + 1);
-        // prelaunchPoints.withdraw(WETH);
+    //     // prelaunchPoints.setLoopAddresses(address(lpBTC), address(lpBTCVault));
+    //     // vm.warp(prelaunchPoints.loopActivation() + 1);
+    //     // prelaunchPoints.withdraw(WBTC);
 
-        // assertEq(prelaunchPoints.balances(address(this), WETH), 0);
-        // assertEq(prelaunchPoints.totalSupply(), 0);
-        // assertEq(weth.balanceOf(address(this)), lockAmount + INITIAL_SUPPLY);
-    }
+    //     // assertEq(prelaunchPoints.balances(address(this), WBTC), 0);
+    //     // assertEq(prelaunchPoints.totalSupply(), 0);
+    //     // assertEq(wbtc.balanceOf(address(this)), lockAmount + INITIAL_SUPPLY);
+    // }
 
-    function testWithdrawETHBeforeActivation(uint256 lockAmount) public {
+    function testWithdrawBTCBeforeActivation(uint256 lockAmount) public {
         lockAmount = bound(lockAmount, 1, INITIAL_SUPPLY * 1e10);
-        vm.deal(address(this), lockAmount);
-        prelaunchPoints.lockETH{value: lockAmount}(referral);
+        wbtc.mint(address(this), lockAmount);
+        wbtc.approve(address(prelaunchPoints), lockAmount);
+        prelaunchPoints.lock(WBTC, lockAmount, referral);
 
-        prelaunchPoints.withdraw(WETH);
+        prelaunchPoints.withdraw(WBTC);
 
-        assertEq(prelaunchPoints.balances(address(this), WETH), 0);
+        assertEq(prelaunchPoints.balances(address(this), WBTC), 0);
         assertEq(prelaunchPoints.totalSupply(), 0);
-        assertEq(weth.balanceOf(address(this)), lockAmount + INITIAL_SUPPLY);
+        assertEq(wbtc.balanceOf(address(this)), lockAmount + INITIAL_SUPPLY);
     }
 
-    function testWithdrawETHBeforeActivationEmergencyMode(uint256 lockAmount) public {
+    function testWithdrawBTCBeforeActivationEmergencyMode(uint256 lockAmount) public {
         lockAmount = bound(lockAmount, 1, INITIAL_SUPPLY * 1e10);
-        vm.deal(address(this), lockAmount);
-        prelaunchPoints.lockETH{value: lockAmount}(referral);
+        wbtc.mint(address(this), lockAmount);
+        wbtc.approve(address(prelaunchPoints), lockAmount);
+        prelaunchPoints.lock(WBTC, lockAmount, referral);
 
         prelaunchPoints.setEmergencyMode(true);
 
-        prelaunchPoints.withdraw(WETH);
-        assertEq(prelaunchPoints.balances(address(this), WETH), 0);
+        prelaunchPoints.withdraw(WBTC);
+        assertEq(prelaunchPoints.balances(address(this), WBTC), 0);
         assertEq(prelaunchPoints.totalSupply(), 0);
-        assertEq(weth.balanceOf(address(this)), lockAmount + INITIAL_SUPPLY);
+        assertEq(wbtc.balanceOf(address(this)), lockAmount + INITIAL_SUPPLY);
     }
 
-    function testWithdrawETHFailAfterConvert(uint256 lockAmount) public {
+    function testWithdrawBTCFailAfterConvert(uint256 lockAmount) public {
         lockAmount = bound(lockAmount, 1, 1e36);
-        vm.deal(address(this), lockAmount);
-        prelaunchPoints.lockETH{value: lockAmount}(referral);
+        wbtc.mint(address(this), lockAmount);
+        wbtc.approve(address(prelaunchPoints), lockAmount);
+        prelaunchPoints.lock(WBTC, lockAmount, referral);
 
-        prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
+        prelaunchPoints.setLoopAddresses(address(lpBTC), address(lpBTCVault));
         vm.warp(prelaunchPoints.loopActivation() + prelaunchPoints.TIMELOCK() + 1);
-        prelaunchPoints.convertAllETH();
+        prelaunchPoints.convertAllBTC();
 
         vm.expectRevert(PrelaunchPoints.NoLongerPossible.selector);
-        prelaunchPoints.withdraw(WETH);
+        prelaunchPoints.withdraw(WBTC);
     }
 
-    // function testWithdrawETHFailNotReceive(uint256 lockAmount) public {
-    //     vm.assume(lockAmount > 0);
-    //     vm.deal(address(lpETHVault), lockAmount);
-    //     vm.prank(address(lpETHVault)); // Contract withiut receive
-    //     prelaunchPoints.lockETH{value: lockAmount}(referral);
-
-    //     prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
-    //     vm.warp(prelaunchPoints.loopActivation() + 1);
-
-    //     vm.prank(address(lpETHVault));
-    //     vm.expectRevert(PrelaunchPoints.FailedToSendEther.selector);
-    //     prelaunchPoints.withdraw(WETH);
-    // }
 
     /// ======= Tests for withdraw ======= ///
     function testWithdraw(uint256 lockAmount) public {
@@ -592,7 +525,7 @@ contract PrelaunchPointsTest is Test {
 
         uint256 balanceBefore = lrt.balanceOf(address(this));
 
-        prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
+        prelaunchPoints.setLoopAddresses(address(lpBTC), address(lpBTCVault));
         vm.warp(prelaunchPoints.loopActivation() + 1);
         prelaunchPoints.withdraw(address(lrt));
 
@@ -631,9 +564,9 @@ contract PrelaunchPointsTest is Test {
         lrt.approve(address(prelaunchPoints), lockAmount);
         prelaunchPoints.lock(address(lrt), lockAmount, referral);
 
-        prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
+        prelaunchPoints.setLoopAddresses(address(lpBTC), address(lpBTCVault));
         vm.warp(prelaunchPoints.loopActivation() + prelaunchPoints.TIMELOCK() + 1);
-        prelaunchPoints.convertAllETH();
+        prelaunchPoints.convertAllBTC();
 
         vm.expectRevert(PrelaunchPoints.NoLongerPossible.selector);
         prelaunchPoints.withdraw(address(this));
@@ -646,9 +579,9 @@ contract PrelaunchPointsTest is Test {
 
         uint256 balanceBefore = lrt.balanceOf(address(this));
 
-        prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
+        prelaunchPoints.setLoopAddresses(address(lpBTC), address(lpBTCVault));
         vm.warp(prelaunchPoints.loopActivation() + prelaunchPoints.TIMELOCK() + 1);
-        prelaunchPoints.convertAllETH();
+        prelaunchPoints.convertAllBTC();
 
         prelaunchPoints.setEmergencyMode(true);
 
@@ -669,15 +602,15 @@ contract PrelaunchPointsTest is Test {
         assertEq(token.balanceOf(address(prelaunchPoints)), 0);
     }
 
-    function testRecoverERC20FailLpETH(uint256 amount) public {
-        prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
+    function testRecoverERC20FailLpBTC(uint256 amount) public {
+        prelaunchPoints.setLoopAddresses(address(lpBTC), address(lpBTCVault));
 
         vm.expectRevert(PrelaunchPoints.NotValidToken.selector);
-        prelaunchPoints.recoverERC20(address(lpETH), amount);
+        prelaunchPoints.recoverERC20(address(lpBTC), amount);
     }
 
     function testRecoverERC20FailLRT(uint256 amount) public {
-        prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
+        prelaunchPoints.setLoopAddresses(address(lpBTC), address(lpBTCVault));
 
         vm.expectRevert(PrelaunchPoints.NotValidToken.selector);
         prelaunchPoints.recoverERC20(address(lrt), amount);
@@ -685,21 +618,22 @@ contract PrelaunchPointsTest is Test {
 
     /// ======= Tests for SetLoopAddresses ======= ///
     function testSetLoopAddressesFailTwice() public {
-        prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
+        prelaunchPoints.setLoopAddresses(address(lpBTC), address(lpBTCVault));
 
         vm.expectRevert(PrelaunchPoints.NoLongerPossible.selector);
-        prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
+        prelaunchPoints.setLoopAddresses(address(lpBTC), address(lpBTCVault));
     }
 
     function testSetLoopAddressesFailAfterDeadline(uint256 lockAmount) public {
         lockAmount = bound(lockAmount, 1, INITIAL_SUPPLY) * 1e10;
-        vm.deal(address(this), lockAmount);
-        prelaunchPoints.lockETH{value: lockAmount}(referral);
+        wbtc.mint(address(this), lockAmount);
+        wbtc.approve(address(prelaunchPoints), lockAmount);
+        prelaunchPoints.lock(WBTC, lockAmount, referral);
 
         vm.warp(prelaunchPoints.loopActivation() + 1);
 
         vm.expectRevert(PrelaunchPoints.NoLongerPossible.selector);
-        prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
+        prelaunchPoints.setLoopAddresses(address(lpBTC), address(lpBTCVault));
     }
 
     /// ======= Tests for SetOwner ======= ///
@@ -750,37 +684,39 @@ contract PrelaunchPointsTest is Test {
 
     /// ======= Tests for AllowToken ======= ///
     function testAllowToken() public {
-        prelaunchPoints.allowToken(ETH);
+        address token = address(0x1234);
+        prelaunchPoints.allowToken(token);
 
-        assertEq(prelaunchPoints.isTokenAllowed(ETH), true);
+        assertEq(prelaunchPoints.isTokenAllowed(token), true);
     }
 
     function testAllowTokenFailNotAuthorized() public {
         address user1 = vm.addr(1);
+        address token = address(0x1234);
         vm.prank(user1);
         vm.expectRevert(PrelaunchPoints.NotAuthorized.selector);
-        prelaunchPoints.allowToken(ETH);
+        prelaunchPoints.allowToken(token);
     }
 
     /// ======= Tests for SetDepositMaxCaps ======= ///
     function testSetDepositMaxCaps(uint256 amount0, uint256 amount1) public {
         address[] memory allowedTokens_ = new address[](2);
         uint256[] memory initialMaxBalance_ = new uint256[](2);
-        allowedTokens_[0] = WETH;
+        allowedTokens_[0] = WBTC;
         allowedTokens_[1] = address(lrt);
         initialMaxBalance_[0] = amount0;
         initialMaxBalance_[1] = amount1;
 
         prelaunchPoints.setDepositMaxCaps(allowedTokens_, initialMaxBalance_);
 
-        assertEq(prelaunchPoints.maxDepositCap(WETH), amount0);
+        assertEq(prelaunchPoints.maxDepositCap(WBTC), amount0);
         assertEq(prelaunchPoints.maxDepositCap(address(lrt)), amount1);
     }
 
     function testSetDepositMaxCapsNotAuthorized(uint256 amount0, uint256 amount1) public {
         address[] memory allowedTokens_ = new address[](2);
         uint256[] memory initialMaxBalance_ = new uint256[](2);
-        allowedTokens_[0] = WETH;
+        allowedTokens_[0] = WBTC;
         allowedTokens_[1] = address(lrt);
         initialMaxBalance_[0] = amount0;
         initialMaxBalance_[1] = amount1;
@@ -794,7 +730,7 @@ contract PrelaunchPointsTest is Test {
     function testSetDepositMaxCapsTokenNotAllowed(uint256 amount0, uint256 amount1) public {
         address[] memory allowedTokens_ = new address[](2);
         uint256[] memory initialMaxBalance_ = new uint256[](2);
-        allowedTokens_[0] = WETH;
+        allowedTokens_[0] = WBTC;
         allowedTokens_[1] = address(0x12345);
         initialMaxBalance_[0] = amount0;
         initialMaxBalance_[1] = amount1;
@@ -803,7 +739,7 @@ contract PrelaunchPointsTest is Test {
         prelaunchPoints.setDepositMaxCaps(allowedTokens_, initialMaxBalance_);
     }
 
-    /// ======== Test for receive ETH ========= ///
+    /// ======== Test for receive BTC ========= ///
     function testReceiveDirectEthFail() public {
         vm.deal(address(this), 1 ether);
 
@@ -814,10 +750,9 @@ contract PrelaunchPointsTest is Test {
     /// ======= Reentrancy Tests ======= ///
     function testReentrancyOnWithdraw() public {
         uint256 lockAmount = 1 ether;
-
-        vm.deal(address(this), lockAmount);
-        vm.prank(address(this));
-        prelaunchPoints.lockETH{value: lockAmount}(referral);
+        wbtc.mint(address(this), lockAmount);
+        wbtc.approve(address(prelaunchPoints), lockAmount);
+        prelaunchPoints.lock(WBTC, lockAmount, referral);
 
         vm.warp(prelaunchPoints.loopActivation() + 1 days);
         vm.prank(address(attackContract));
@@ -828,13 +763,14 @@ contract PrelaunchPointsTest is Test {
     function testReentrancyOnClaim() public {
         uint256 lockAmount = 1 ether;
 
-        vm.deal(address(this), lockAmount);
         vm.prank(address(this));
-        prelaunchPoints.lockETH{value: lockAmount}(referral);
+        wbtc.mint(address(this), lockAmount);
+        wbtc.approve(address(prelaunchPoints), lockAmount);
+        prelaunchPoints.lock(WBTC, lockAmount, referral);
 
-        prelaunchPoints.setLoopAddresses(address(lpETH), address(lpETHVault));
+        prelaunchPoints.setLoopAddresses(address(lpBTC), address(lpBTCVault));
         vm.warp(prelaunchPoints.loopActivation() + prelaunchPoints.TIMELOCK() + 1 days);
-        prelaunchPoints.convertAllETH();
+        prelaunchPoints.convertAllBTC();
 
         vm.warp(prelaunchPoints.startClaimDate() + 1 days);
         vm.prank(address(attackContract));
