@@ -57,6 +57,12 @@ To deploy and verify the `PrelaunchPoints` contract run
 forge script script/PrelaunchPoints.s.sol --rpc-url $RPC_URL --broadcast --verify
 ```
 
+If verification fails you can manually submit by using
+
+```
+forge verify-contract --chain scroll --constructor-args-path constructor-args.txt --etherscan-api-key $SCROLLSCAN_API_KEY <contract_address> PrelaunchPoints
+```
+
 ## Audit metrics
 
 To get some metrics pre audit, run

@@ -6,5 +6,7 @@ libs = ["lib"]
 solc_version = "0.8.20"
 optimizer = true
 optimizer_runs = 100
+# Others
+prompt_timeout = 120
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config
