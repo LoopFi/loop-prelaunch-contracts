@@ -20,11 +20,8 @@ contract PrelaunchPointsScript is Script {
     function run() public {
         uint256 privateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(privateKey);
-        vm.setNonce(deployer, 3);
-        uint256 nonce = vm.getNonce(deployer);
 
         console.log("Deployer Account", deployer);
-        console.log("Deployer Nonce", nonce);
         console.log("Chain ID", block.chainid);
         initialMaxDepositCaps.push(1 ether);
         //vm.prompt("Press enter to deploy");
@@ -33,7 +30,6 @@ contract PrelaunchPointsScript is Script {
         initialMaxDepositCaps.push(1 ether);
 
         vm.broadcast(privateKey);
-        vm.txGasPrice(2);
         new PrelaunchPoints(EXCHANGE_PROXY, WBTC, allowedTokens, initialMaxDepositCaps);
     }
 }
