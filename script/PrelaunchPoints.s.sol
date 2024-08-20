@@ -23,11 +23,11 @@ contract PrelaunchPointsScript is Script {
 
         console.log("Deployer Account", deployer);
         console.log("Chain ID", block.chainid);
-        initialMaxDepositCaps.push(1 ether);
+        initialMaxDepositCaps.push(1000000);
         //vm.prompt("Press enter to deploy");
 
         allowedTokens.push(swBTC);
-        initialMaxDepositCaps.push(1 ether);
+        initialMaxDepositCaps.push(1000000);
 
         vm.broadcast(privateKey);
         new PrelaunchPoints(EXCHANGE_PROXY, WBTC, allowedTokens, initialMaxDepositCaps);

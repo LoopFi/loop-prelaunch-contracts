@@ -79,7 +79,6 @@ contract PrelaunchPoints {
     error CannotClaimZero();
     error CannotWithdrawZero();
     error UseClaimInstead();
-    error FailedToSendEther();
     error SellTokenApprovalFailed();
     error SwapCallFailed();
     error WrongSelector(bytes4 selector);
