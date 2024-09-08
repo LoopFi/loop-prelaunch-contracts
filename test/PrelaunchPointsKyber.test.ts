@@ -19,29 +19,14 @@ const CLIENT_ID = process.env.CLIENT_ID || ""
 
 const tokens = [
   {
-    name: "weETH",
-    address: "0x01f0a31698C4d065659b9bdC21B3610292a1c506",
-    whale: "0xe67e43b831A541c5Fa40DE52aB0aFbE311514E64",
-  },
-  {
-    name: "STONE",
-    address: "0x80137510979822322193fc997d400d5a6c747bf7",
-    whale: "0x34669322bdfCa9e801CA334e7B0E6D69d1F87137",
-  },
-  {
-    name: "pufETH",
-    address: "0xc4d46E8402F476F269c379677C99F18E22Ea030e",
-    whale: "0x9026A229b535ecF0162Dfe48fDeb3c75f7b2A7AE",
-  },
-  {
-    name: "wrsETH",
-    address: "0xa25b25548B4C98B0c7d3d27dcA5D5ca743d68b7F",
-    whale: "0xbC37277871Ab83B83b6E77a8419aC5CBB78d5cf1",
+    name: "ynETH",
+    address: "0x09db87A538BD693E9d08544577d5cCfAA6373A48",
+    whale: "0xB9779AeC32f4cbF376F325d8c393B0D2711874eD",
   },
 ]
 
 describe("Kyberswap API integration", function () {
-  const WETH = "0x5300000000000000000000000000000000000004"
+  const WETH = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
   const exchangeProxy = "0x6131B5fae19EA4f9D964eAc0408E4408b66337b5"
 
   const sellAmount = ethers.parseEther("1")
@@ -117,14 +102,14 @@ describe("Kyberswap API integration", function () {
       // Get Quote from Kyber API
       const headers = { "x-client-id": CLIENT_ID }
       const routesResponse = await fetch(
-        `https://aggregator-api.kyberswap.com/scroll/api/v1/routes?tokenIn=${token.address}&tokenOut=${WETH}&amountIn=${sellAmount}&source=${CLIENT_ID}`,
+        `https://aggregator-api.kyberswap.com/ethereum/api/v1/routes?tokenIn=${token.address}&tokenOut=${WETH}&amountIn=${sellAmount}&source=${CLIENT_ID}`,
         { headers }
       )
       const route = await routesResponse.json()
-      // console.log(route)
+      console.log(route)
 
       const quoteResponse = await fetch(
-        "https://aggregator-api.kyberswap.com/scroll/api/v1/route/build",
+        "https://aggregator-api.kyberswap.com/ethereum/api/v1/route/build",
         {
           method: "POST",
           headers: {
@@ -208,14 +193,14 @@ describe("Kyberswap API integration", function () {
       // Get Quote from Kyber API
       const headers = { "x-client-id": CLIENT_ID }
       const routesResponse = await fetch(
-        `https://aggregator-api.kyberswap.com/scroll/api/v1/routes?tokenIn=${token.address}&tokenOut=${WETH}&amountIn=${sellAmount}&source=${CLIENT_ID}`,
+        `https://aggregator-api.kyberswap.com/ethereum/api/v1/routes?tokenIn=${token.address}&tokenOut=${WETH}&amountIn=${sellAmount}&source=${CLIENT_ID}`,
         { headers }
       )
       const route = await routesResponse.json()
       // console.log(route)
 
       const quoteResponse = await fetch(
-        "https://aggregator-api.kyberswap.com/scroll/api/v1/route/build",
+        "https://aggregator-api.kyberswap.com/ethereum/api/v1/route/build",
         {
           method: "POST",
           headers: {
