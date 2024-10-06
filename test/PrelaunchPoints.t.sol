@@ -11,6 +11,8 @@ import "../src/mock/MockLpETHVault.sol";
 import {ERC20Token} from "../src/mock/MockERC20.sol";
 import {LRToken} from "../src/mock/MockLRT.sol";
 import {MockWETH} from "../src/mock/MockWETH.sol";
+import {MockLpETHStaking} from "../src/mock/MockLpETHStaking.sol";
+import {StakingLpEthWrapper} from "../src/StakingLpEthWrapper.sol";
 
 import "forge-std/console.sol";
 
@@ -20,7 +22,8 @@ contract PrelaunchPointsTest is Test {
     ILpETH public lpETH;
     MockWETH public weth;
     LRToken public lrt;
-    ILpETHVault public lpETHVault;
+    MockLpETHStaking public lpETHStaking;
+    StakingLpEthWrapper public lpETHVault;
     uint256 public constant INITIAL_SUPPLY = 1000 ether;
     bytes32 referral = bytes32(uint256(1));
 
@@ -43,7 +46,8 @@ contract PrelaunchPointsTest is Test {
         prelaunchPoints = new PrelaunchPoints(EXCHANGE_PROXY, WETH, allowedTokens_);
 
         lpETH = new MockLpETH();
-        lpETHVault = new MockLpETHVault();
+        lpETHStaking = new MockLpETHStaking(IERC20(lpETH));
+        lpETHVault = new StakingLpEthWrapper(address(lpETH), address(lpETHStaking));
 
         attackContract = new AttackContract(prelaunchPoints);
     }
@@ -368,7 +372,7 @@ contract PrelaunchPointsTest is Test {
 
         assertEq(prelaunchPoints.balances(address(this), WETH), 0);
         assertEq(lpETH.balanceOf(address(this)), 0);
-        assertEq(lpETHVault.balanceOf(address(this)), balanceLpETH);
+        assertEq(lpETHStaking.balanceOf(address(this)), balanceLpETH);
     }
 
     function testClaimAndStakeSeveralUsers(uint256 lockAmount, uint256 lockAmount1, uint256 lockAmount2) public {
@@ -401,7 +405,7 @@ contract PrelaunchPointsTest is Test {
 
         assertEq(prelaunchPoints.balances(address(this), WETH), 0);
         assertEq(lpETH.balanceOf(address(this)), 0);
-        assertEq(lpETHVault.balanceOf(address(this)), balanceLpETH);
+        assertEq(lpETHStaking.balanceOf(address(this)), balanceLpETH);
 
         vm.prank(user1);
         prelaunchPoints.claimAndStake(WETH, 100, PrelaunchPoints.Exchange.UniswapV3, 0, emptydata);
@@ -409,7 +413,7 @@ contract PrelaunchPointsTest is Test {
 
         assertEq(prelaunchPoints.balances(user1, WETH), 0);
         assertEq(lpETH.balanceOf(user1), 0);
-        assertEq(lpETHVault.balanceOf(user1), balanceLpETH1);
+        assertEq(lpETHStaking.balanceOf(user1), balanceLpETH1);
     }
 
     function testClaimAndStakeFailTwice(uint256 lockAmount) public {

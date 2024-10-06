@@ -10,7 +10,8 @@ import "dotenv/config"
 import {
   IERC20,
   MockLpETH,
-  MockLpETHVault,
+  StakingLpEthWrapper,
+  MockLpETHStaking,
   PrelaunchPoints,
 } from "../typechain"
 import { parseEther } from "ethers"
@@ -62,14 +63,22 @@ describe("0x API integration", function () {
   let lockToken: IERC20
   let prelaunchPoints: PrelaunchPoints
   let lpETH: MockLpETH
-  let lpETHVault: MockLpETHVault
+  let lpETHVault: StakingLpEthWrapper
+  let lpETHStaking: MockLpETHStaking
 
   before(async () => {
     const LpETH = await hre.ethers.getContractFactory("MockLpETH")
     lpETH = (await LpETH.deploy()) as unknown as MockLpETH
 
-    const LpETHVault = await hre.ethers.getContractFactory("MockLpETHVault")
-    lpETHVault = (await LpETHVault.deploy()) as unknown as MockLpETHVault
+    const LpETHVault = await hre.ethers.getContractFactory(
+      "StakingLpEthWrapper"
+    )
+    lpETHVault = (await LpETHVault.deploy()) as unknown as StakingLpEthWrapper
+
+    const LpETHStaking = await hre.ethers.getContractFactory(
+      "StakingLpEthWrapper"
+    )
+    lpETHStaking = (await LpETHStaking.deploy()) as unknown as MockLpETHStaking
   })
 
   beforeEach(async () => {
@@ -223,7 +232,7 @@ describe("0x API integration", function () {
         0
       )
 
-      const balanceLpETHAfter = await lpETHVault.balanceOf(depositor)
+      const balanceLpETHAfter = await lpETHStaking.balanceOf(depositor)
       expect(balanceLpETHAfter).to.be.gt((sellAmount * 95n) / 100n)
     })
   })
