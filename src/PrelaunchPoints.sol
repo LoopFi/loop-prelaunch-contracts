@@ -193,7 +193,7 @@ contract PrelaunchPoints {
 
             if (_token == address(WETH)) {
                 totalSupply += _amount;
-            } 
+            }
             balances[_receiver][_token] += _amount;
         }
 
@@ -227,10 +227,13 @@ contract PrelaunchPoints {
      * @param _typeIndex  lock type index determining lock period and rewards multiplier.
      * @param _data       Swap data obtained from 0x API
      */
-    function claimAndStake(address _token, uint8 _percentage, Exchange _exchange, uint256 _typeIndex, bytes calldata _data)
-        external
-        onlyAfterDate(startClaimDate)
-    {
+    function claimAndStake(
+        address _token,
+        uint8 _percentage,
+        Exchange _exchange,
+        uint256 _typeIndex,
+        bytes calldata _data
+    ) external onlyAfterDate(startClaimDate) {
         uint256 claimedAmount = _claim(_token, address(this), _percentage, _exchange, _data);
         lpETH.approve(address(lpETHVault), claimedAmount);
         lpETHVault.stake(claimedAmount, msg.sender, _typeIndex);
@@ -255,9 +258,9 @@ contract PrelaunchPoints {
         if (_token == address(WETH)) {
             claimedAmount = userStake.mulDiv(totalLpETH, totalSupply);
             balances[msg.sender][_token] = 0;
-            if (_receiver != address(this)){
+            if (_receiver != address(this)) {
                 lpETH.safeTransfer(_receiver, claimedAmount);
-            }  
+            }
         } else {
             uint256 userClaim = userStake * _percentage / 100;
             _validateData(_token, userClaim, _exchange, _data);
@@ -295,7 +298,7 @@ contract PrelaunchPoints {
             revert CannotWithdrawZero();
         }
         if (_token == address(WETH)) {
-            if (block.timestamp >= startClaimDate){
+            if (block.timestamp >= startClaimDate) {
                 revert UseClaimInstead();
             }
             totalSupply -= lockedAmount;
@@ -340,7 +343,7 @@ contract PrelaunchPoints {
     }
 
     /**
-     * @notice Proposed owner accepts the ownership. 
+     * @notice Proposed owner accepts the ownership.
      * Can only be called by current proposed owner.
      */
     function acceptOwnership() external {
@@ -431,8 +434,8 @@ contract PrelaunchPoints {
                 revert WrongDataTokens(inputToken, outputToken);
             }
             if (recipient != address(this)) {
-            revert WrongRecipient(recipient);
-        }
+                revert WrongRecipient(recipient);
+            }
         } else if (_exchange == Exchange.TransformERC20) {
             (inputToken, outputToken, inputTokenAmount, selector) = _decodeTransformERC20Data(_data);
             if (selector != TRANSFORM_SELECTOR) {
@@ -451,7 +454,6 @@ contract PrelaunchPoints {
         if (inputTokenAmount != _amount) {
             revert WrongDataAmount(inputTokenAmount);
         }
-        
     }
 
     /**
@@ -500,7 +502,6 @@ contract PrelaunchPoints {
      * @param _amount       The `sellAmount` field from the API response.
      * @param _swapCallData  The `data` field from the API response.
      */
-
     function _fillQuote(IERC20 _sellToken, uint256 _amount, bytes calldata _swapCallData) internal {
         // Track our balance of the buyToken to determine how much we've bought.
         uint256 boughtWETHAmount = WETH.balanceOf(address(this));

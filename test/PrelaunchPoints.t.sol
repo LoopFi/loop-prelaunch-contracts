@@ -47,7 +47,8 @@ contract PrelaunchPointsTest is Test {
 
         lpETH = new MockLpETH();
         lpETHStaking = new MockLpETHStaking(IERC20(lpETH));
-        lpETHVault = new StakingLpEthWrapper(address(lpETH), address(lpETHStaking));
+        lpETHVault = new StakingLpEthWrapper(address(lpETH));
+        lpETHVault.setStakingContract(address(lpETHStaking));
 
         attackContract = new AttackContract(prelaunchPoints);
     }
@@ -121,7 +122,7 @@ contract PrelaunchPointsTest is Test {
 
         assertEq(prelaunchPoints.balances(address(this), address(lrt)), lockAmount);
     }
-    
+
     function testLockWETH(uint256 lockAmount) public {
         lockAmount = bound(lockAmount, 1, INITIAL_SUPPLY);
         weth.approve(address(prelaunchPoints), lockAmount);

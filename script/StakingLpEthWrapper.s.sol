@@ -7,7 +7,6 @@ import "../src/StakingLpEthWrapper.sol";
 
 contract StakingLpEthWrapperScript is Script {
     address public constant lpETH = address(0x0);
-    address public constant lpETHStaking = address(0x0);
 
     function setUp() public {}
 
@@ -17,6 +16,6 @@ contract StakingLpEthWrapperScript is Script {
         console.log("Deployer Account", deployer);
 
         vm.broadcast(privateKey);
-        new StakingLpEthWrapper(lpETH, lpETHStaking);
+        new StakingLpEthWrapper(lpETH);
     }
 }

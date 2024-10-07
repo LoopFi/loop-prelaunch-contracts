@@ -8,10 +8,5 @@ interface ILpETH is IERC20 {
     /// @param assets Amount of underlying to deposit
     /// @param receiver Account to mint pool shares to
     /// @return shares Number of shares minted
-    function deposit(
-        uint256 assets,
-        address receiver
-    )
-    external
-        returns (uint256 shares);
+    function deposit(uint256 assets, address receiver) external returns (uint256 shares);
 }
